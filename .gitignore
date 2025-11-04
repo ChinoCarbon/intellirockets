@@ -1,0 +1,87 @@
+﻿# ===============================
+# Unreal Engine 5 + Rider Project
+# ===============================
+
+# Build artifacts
+/Binaries/
+/Build/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+
+# Rider / Visual Studio / VSCode project settings
+/.vs/
+/.idea/
+/.vscode/
+/*.code-workspace
+*.sln
+*.vcxproj*
+*.opensdf
+*.sdf
+*.suo
+*.user
+*.userprefs
+*.db
+*.VC.db
+*.VC.opendb
+*.VC.VC.db
+
+# Temporary or log files
+*.log
+*.tlog
+*.obj
+*.pdb
+*.ipch
+*.aps
+*.cache
+*.tmp
+*.pri
+*.idb
+
+# Unreal auto-generated files
+*.generated.h
+*_Stub.cpp
+*.generated.cpp
+*_Bindings.cpp
+
+# Configurations specific to local machine
+/Saved/Autosaves/
+/Saved/Backup/
+*.local
+
+# OS system files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+
+# Unreal Engine specific
+# (These are re-generated or cached automatically)
+DerivedDataCache/
+Engine/DerivedDataCache/
+*.uasset.tmp
+*.umap.tmp
+
+# Optional: Ignore plugin binaries & intermediates
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Optional: Ignore private build scripts
+Scripts/Local/
+PrivateBuild/
+
+# LFS suggestion: you can use Git LFS for large assets
+# Example:
+# *.uasset filter=lfs diff=lfs merge=lfs -text
+# *.umap filter=lfs diff=lfs merge=lfs -text
+
+# ===============================
+# Files to KEEP in Git
+# ===============================
+!Config/
+!Source/
+!Content/
+!Plugins/
+!*.uproject
+!README.md
+!*.uplugin
