@@ -45,10 +45,12 @@ void UScenarioMenuSubsystem::Show(UWorld* World)
 		UE_LOG(LogTemp, Warning, TEXT("Show(): GameViewport not ready"));
 		return;
 	}
+
+	// 如果界面已存在，先移除
 	if (Screen.IsValid())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Show(): Screen already valid"));
-		return;
+		GEngine->GameViewport->RemoveViewportWidgetContent(Screen.ToSharedRef());
+		Screen.Reset();
 	}
 
 	SAssignNew(Screen, SScenarioScreen)
@@ -59,7 +61,7 @@ void UScenarioMenuSubsystem::Show(UWorld* World)
 		.OnBackToMainMenu(FOnBackToMainMenu::CreateUObject(this, &UScenarioMenuSubsystem::BackToMainMenu));
 
 	GEngine->GameViewport->AddViewportWidgetContent(Screen.ToSharedRef(), 100);
-	UE_LOG(LogTemp, Log, TEXT("Show(): Screen added to GameViewport"));
+	UE_LOG(LogTemp, Log, TEXT("Show(): Screen added to GameViewport, StepIndex=%d"), StepIndex);
 
 	if (APlayerController* PC = World->GetFirstPlayerController())
 	{
@@ -83,11 +85,21 @@ void UScenarioMenuSubsystem::Hide(UWorld* World)
 void UScenarioMenuSubsystem::Prev()
 {
 	StepIndex = FMath::Max(0, StepIndex - 1);
+	UE_LOG(LogTemp, Log, TEXT("Prev clicked, StepIndex=%d"), StepIndex);
+	if (UWorld* World = GetWorld())
+	{
+		Show(World);
+	}
 }
 
 void UScenarioMenuSubsystem::Next()
 {
-	StepIndex++;
+	StepIndex = FMath::Min(4, StepIndex + 1); // 限制在0-4之间（5个步骤）
+	UE_LOG(LogTemp, Log, TEXT("Next clicked, StepIndex=%d"), StepIndex);
+	if (UWorld* World = GetWorld())
+	{
+		Show(World);
+	}
 }
 
 void UScenarioMenuSubsystem::SaveAll()

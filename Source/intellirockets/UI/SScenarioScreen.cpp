@@ -1,13 +1,18 @@
 #include "UI/SScenarioScreen.h"
 #include "UI/Widgets/SScenarioBreadcrumb.h"
 #include "UI/Widgets/SScenarioMainTable.h"
+#include "UI/Widgets/SIndicatorSelector.h"
+#include "UI/Widgets/SEnvironmentBuilder.h"
 #include "UI/Styles/ScenarioStyle.h"
 
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 
 void SScenarioScreen::Construct(const FArguments& InArgs)
 {
@@ -137,26 +142,9 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionContent()
 			SAssignNew(Breadcrumb, SScenarioBreadcrumb)
 			.CurrentStep(StepIndex)
 		]
-		+ SVerticalBox::Slot().AutoHeight()
+		+ SVerticalBox::Slot().FillHeight(1.f)
 		[
-			SNew(SBorder)
-			.Padding(10.f)
-			.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
-			.BorderBackgroundColor(ScenarioStyle::Panel)
-			[
-				SNew(STextBlock)
-				.Text(FText::FromString(TEXT("使用说明：此页面用于配置测评对象列表，统一进行编辑与管理。")))
-				.ColorAndOpacity(ScenarioStyle::TextDim)
-				.Font(ScenarioStyle::Font(12))
-				.WrapTextAt(1200.f)
-			]
-		]
-		+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 8.f, 0.f, 8.f)
-		[
-			SAssignNew(MainTable, SScenarioMainTable)
-			.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Row")); }))
-			.OnRowSave(FOnRowSave::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Save Row")); }))
-			.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Row")); }))
+			BuildDecisionStepContent(StepIndex)
 		]
 		+ SVerticalBox::Slot().AutoHeight()
 		[
@@ -202,11 +190,171 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionContent()
 		];
 }
 
+TSharedRef<SWidget> SScenarioScreen::BuildDecisionStepContent(int32 InStepIndex)
+{
+	switch (InStepIndex)
+	{
+		case 0: return BuildDecisionStep1();
+		case 1: return BuildDecisionStep2();
+		case 2: return BuildDecisionStep3();
+		case 3: return BuildDecisionStep4();
+		case 4: return BuildDecisionStep5();
+		default: return SNew(SSpacer);
+	}
+}
+
+TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
+{
+	// 原第1步的内容：说明条 + 表格 + 测试方法选择
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SNew(SBorder)
+			.Padding(10.f)
+			.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+			.BorderBackgroundColor(ScenarioStyle::Panel)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("使用说明：此页面用于配置测评对象列表，统一进行编辑与管理。")))
+				.ColorAndOpacity(ScenarioStyle::TextDim)
+				.Font(ScenarioStyle::Font(12))
+				.WrapTextAt(1200.f)
+			]
+		]
+		+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 8.f, 0.f, 8.f)
+		[
+			SAssignNew(MainTable, SScenarioMainTable)
+			.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Row")); }))
+			.OnRowSave(FOnRowSave::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Save Row")); }))
+			.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Row")); }))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+		[
+			SNew(SBorder)
+			.Padding(10.f)
+			.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+			.BorderBackgroundColor(ScenarioStyle::Panel)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 10.f, 0.f)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("测试方法选择")))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::Font(12))
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10.f, 0.f)
+				[
+					SNew(SCheckBox)
+					.IsChecked_Lambda([this]() { return TestMethodIndex == 0 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+					.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+					{
+						if (NewState == ECheckBoxState::Checked) { TestMethodIndex = 0; UE_LOG(LogTemp, Log, TEXT("TestMethod: 正交测试")); }
+					})
+					[
+						SNew(STextBlock).Text(FText::FromString(TEXT("正交测试"))).Font(ScenarioStyle::Font(12))
+					]
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(20.f, 0.f)
+				[
+					SNew(SCheckBox)
+					.IsChecked_Lambda([this]() { return TestMethodIndex == 1 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+					.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+					{
+						if (NewState == ECheckBoxState::Checked) { TestMethodIndex = 1; UE_LOG(LogTemp, Log, TEXT("TestMethod: 单独测试")); }
+					})
+					[
+						SNew(STextBlock).Text(FText::FromString(TEXT("单独测试"))).Font(ScenarioStyle::Font(12))
+					]
+				]
+			]
+		];
+}
+
+TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep2()
+{
+	// 指标体系构建：指标选择器
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+		[
+			SNew(SBorder)
+			.Padding(10.f)
+			.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+			.BorderBackgroundColor(ScenarioStyle::Panel)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("使用说明：请从左侧分类列表中选择指标分类，然后在中间列表中选择需要的指标，已选择的指标会显示在右侧列表中。")))
+				.ColorAndOpacity(ScenarioStyle::TextDim)
+				.Font(ScenarioStyle::Font(12))
+				.WrapTextAt(1200.f)
+			]
+		]
+		+ SVerticalBox::Slot().FillHeight(1.f)
+		[
+			SNew(SIndicatorSelector)
+		];
+}
+
+TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep3()
+{
+	// 测评环境搭建：左侧地图预览，右侧环境选择器
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+		[
+			SNew(SBorder)
+			.Padding(10.f)
+			.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+			.BorderBackgroundColor(ScenarioStyle::Panel)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("使用说明：请在右侧选择天气、时段和地图类型，左侧会实时显示对应的地图预览。")))
+				.ColorAndOpacity(ScenarioStyle::TextDim)
+				.Font(ScenarioStyle::Font(12))
+				.WrapTextAt(1200.f)
+			]
+		]
+		+ SVerticalBox::Slot().FillHeight(1.f)
+		[
+			SNew(SEnvironmentBuilder)
+		];
+}
+
+TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
+{
+	return SNew(SSpacer);
+}
+
+TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep5()
+{
+	return SNew(SSpacer);
+}
+
 TSharedRef<SWidget> SScenarioScreen::BuildPerceptionContent()
 {
-	// 智能感知算法测评的内容（目前为空）
-	UE_LOG(LogTemp, Log, TEXT("BuildPerceptionContent called - returning empty spacer"));
-	return SNew(SSpacer);
+	// 智能感知算法测评的内容：居中、较大、带边框包裹的空面板
+	UE_LOG(LogTemp, Log, TEXT("BuildPerceptionContent called - returning centered bordered panel"));
+	return SNew(SOverlay)
+		+ SOverlay::Slot()
+		[
+			SNew(SBox)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SBorder)
+				.Padding(1.f)
+				.BorderImage(FCoreStyle::Get().GetBrush("Border"))
+				[
+					SNew(SBorder)
+					.Padding(30.f)
+					.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+					.BorderBackgroundColor(ScenarioStyle::Panel)
+					[
+						SNew(SSpacer)
+						.Size(FVector2D(800.f, 420.f))
+					]
+				]
+			]
+		];
 }
 
 

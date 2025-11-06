@@ -32,6 +32,7 @@ private:
 	FOnRowDelete OnRowDelete;
 
 	TArray<TArray<FText>> DemoRows; // [row][col]
+	TArray<bool> SelectedRows;      // 选择状态
 };
 
 

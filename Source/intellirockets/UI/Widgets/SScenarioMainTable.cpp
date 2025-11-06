@@ -5,6 +5,7 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 void SScenarioMainTable::Construct(const FArguments& InArgs)
@@ -28,6 +29,8 @@ void SScenarioMainTable::Construct(const FArguments& InArgs)
 		Row.Add(FText::FromString(TEXT("XXXX"))); // 仿真平台
 		DemoRows.Add(MoveTemp(Row));
 	}
+
+	SelectedRows.Init(false, DemoRows.Num());
 
 	ChildSlot
 	[
@@ -58,6 +61,7 @@ TSharedRef<SWidget> SScenarioMainTable::BuildHeader()
 {
 	TSharedRef<SHorizontalBox> Header = SNew(SHorizontalBox);
 	const TArray<FText> Headers = {
+		FText::FromString(TEXT("选择")),
 		FText::FromString(TEXT("作战任务")),
 		FText::FromString(TEXT("研制单位")),
 		FText::FromString(TEXT("算法名称")),
@@ -67,7 +71,7 @@ TSharedRef<SWidget> SScenarioMainTable::BuildHeader()
 		FText::FromString(TEXT("操作"))
 	};
 
-	const TArray<float> ColWidths = { 0.12f, 0.22f, 0.12f, 0.12f, 0.12f, 0.12f, 0.18f };
+	const TArray<float> ColWidths = { 0.07f, 0.11f, 0.20f, 0.11f, 0.11f, 0.11f, 0.11f, 0.17f };
 
 	for (int32 i = 0; i < Headers.Num(); ++i)
 	{
@@ -102,11 +106,33 @@ TSharedRef<SWidget> SScenarioMainTable::MakeRow(int32 RowIndex)
 	const TArray<FText>& Row = DemoRows[RowIndex];
 	TSharedRef<SHorizontalBox> Line = SNew(SHorizontalBox);
 
-	const TArray<float> ColWidths = { 0.12f, 0.22f, 0.12f, 0.12f, 0.12f, 0.12f, 0.18f };
+	const TArray<float> ColWidths = { 0.07f, 0.11f, 0.20f, 0.11f, 0.11f, 0.11f, 0.11f, 0.17f };
+
+	// 选择列（复选框）
+	Line->AddSlot()
+	.FillWidth(ColWidths[0])
+	.Padding(6.f, 2.f)
+	.VAlign(VAlign_Center)
+	[
+		SNew(SCheckBox)
+		.IsChecked_Lambda([this, RowIndex]()
+		{
+			return (SelectedRows.IsValidIndex(RowIndex) && SelectedRows[RowIndex]) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		})
+		.OnCheckStateChanged_Lambda([this, RowIndex](ECheckBoxState NewState)
+		{
+			if (SelectedRows.IsValidIndex(RowIndex))
+			{
+				SelectedRows[RowIndex] = (NewState == ECheckBoxState::Checked);
+			}
+		})
+	];
+
+	// 文本列
 	for (int32 Col = 0; Col < Row.Num(); ++Col)
 	{
 		Line->AddSlot()
-		.FillWidth(ColWidths[Col])
+		.FillWidth(ColWidths[Col + 1])
 		.Padding(6.f, 2.f)
 		[
 			SNew(STextBlock)
