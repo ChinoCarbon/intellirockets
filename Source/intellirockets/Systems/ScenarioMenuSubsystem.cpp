@@ -86,20 +86,14 @@ void UScenarioMenuSubsystem::Prev()
 {
 	StepIndex = FMath::Max(0, StepIndex - 1);
 	UE_LOG(LogTemp, Log, TEXT("Prev clicked, StepIndex=%d"), StepIndex);
-	if (UWorld* World = GetWorld())
-	{
-		Show(World);
-	}
+    if (Screen.IsValid()) { Screen->SetStepIndex(StepIndex); }
 }
 
 void UScenarioMenuSubsystem::Next()
 {
 	StepIndex = FMath::Min(4, StepIndex + 1); // 限制在0-4之间（5个步骤）
 	UE_LOG(LogTemp, Log, TEXT("Next clicked, StepIndex=%d"), StepIndex);
-	if (UWorld* World = GetWorld())
-	{
-		Show(World);
-	}
+    if (Screen.IsValid()) { Screen->SetStepIndex(StepIndex); }
 }
 
 void UScenarioMenuSubsystem::SaveAll()

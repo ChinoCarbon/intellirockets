@@ -13,6 +13,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Layout/SWrapBox.h"
 
 void SScenarioScreen::Construct(const FArguments& InArgs)
 {
@@ -45,13 +46,35 @@ void SScenarioScreen::Construct(const FArguments& InArgs)
 				]
 			]
 
-			// 根据选中的Tab显示不同内容
-			+ SVerticalBox::Slot().FillHeight(1.f)
-			[
-				ActiveTabIndex == 1 ? BuildDecisionContent() : BuildPerceptionContent()
-			]
+            // 根据选中的Tab显示不同内容（可重建的容器）
+            + SVerticalBox::Slot().FillHeight(1.f)
+            [
+                SAssignNew(DecisionContentBox, SVerticalBox)
+            ]
 		]
 	];
+
+    // 初始内容
+    if (ActiveTabIndex == 1)
+    {
+        DecisionContentBox->AddSlot().AutoHeight()[ BuildDecisionContent() ];
+    }
+    else
+    {
+        DecisionContentBox->AddSlot().FillHeight(1.f)[ BuildPerceptionContent() ];
+    }
+}
+
+void SScenarioScreen::SetStepIndex(int32 InStepIndex)
+{
+    StepIndex = FMath::Clamp(InStepIndex, 0, 4);
+    if (Breadcrumb.IsValid())
+    {
+        Breadcrumb->SetCurrentStep(StepIndex);
+    }
+    if (!DecisionContentBox.IsValid()) return;
+    DecisionContentBox->ClearChildren();
+    DecisionContentBox->AddSlot().AutoHeight()[ BuildDecisionContent() ];
 }
 
 FReply SScenarioScreen::OnPrevClicked()
@@ -206,7 +229,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStepContent(int32 InStepIndex)
 TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 {
 	// 原第1步的内容：说明条 + 表格 + 测试方法选择
-	return SNew(SVerticalBox)
+    return SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight()
 		[
 			SNew(SBorder)
@@ -223,10 +246,15 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 		]
 		+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 8.f, 0.f, 8.f)
 		[
-			SAssignNew(MainTable, SScenarioMainTable)
-			.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Row")); }))
-			.OnRowSave(FOnRowSave::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Save Row")); }))
-			.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Row")); }))
+            (MainTable.IsValid()
+                ? StaticCastSharedRef<SWidget>(MainTable.ToSharedRef())
+                : StaticCastSharedRef<SWidget>(
+                    SAssignNew(MainTable, SScenarioMainTable)
+                    .OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Row")); }))
+                    .OnRowSave(FOnRowSave::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Save Row")); }))
+                    .OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Row")); }))
+                  )
+            )
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
 		[
@@ -291,7 +319,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep2()
 		]
 		+ SVerticalBox::Slot().FillHeight(1.f)
 		[
-			SNew(SIndicatorSelector)
+            (IndicatorSelector.IsValid() ? IndicatorSelector.ToSharedRef() : SAssignNew(IndicatorSelector, SIndicatorSelector))
 		];
 }
 
@@ -315,13 +343,182 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep3()
 		]
 		+ SVerticalBox::Slot().FillHeight(1.f)
 		[
-			SNew(SEnvironmentBuilder)
+            (EnvironmentBuilder.IsValid() ? EnvironmentBuilder.ToSharedRef() : SAssignNew(EnvironmentBuilder, SEnvironmentBuilder))
 		];
 }
 
 TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 {
-	return SNew(SSpacer);
+    // 汇总 Step1~3 的选择，展示为总览
+    TSharedRef<SVerticalBox> Box = SNew(SVerticalBox);
+
+    // 标题
+    Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,8.f)
+    [
+        SNew(SBorder)
+        .Padding(8.f)
+        .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+        .BorderBackgroundColor(ScenarioStyle::Panel)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(TEXT("测评配置总览（Step1~Step3）")))
+            .ColorAndOpacity(ScenarioStyle::Text)
+            .Font(ScenarioStyle::Font(16))
+        ]
+    ];
+
+    // Step1: 测评方法（正交/单独）
+    const FString MethodText = (TestMethodIndex == 0) ? TEXT("正交测试") : TEXT("单独测试");
+    Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,6.f)
+    [
+        SNew(SBorder)
+        .Padding(8.f)
+        .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+        .BorderBackgroundColor(ScenarioStyle::Panel)
+        [
+            SNew(STextBlock)
+            .Text(FText::FromString(FString::Printf(TEXT("测评方法：%s"), *MethodText)))
+            .ColorAndOpacity(ScenarioStyle::Text)
+            .Font(ScenarioStyle::Font(13))
+        ]
+    ];
+
+    // Step2: 指标（数量与内容列表：名称（英文）: 描述）
+    int32 IndicatorCount = 0; FString IndicatorsLine;
+    if (IndicatorSelector.IsValid())
+    {
+        TArray<FString> Ids; TArray<FString> Names;
+        IndicatorSelector->GetSelectedIndicatorDetails(Ids, Names);
+        IndicatorCount = Names.Num();
+        if (IndicatorCount > 0)
+        {
+            IndicatorsLine = FString::Join(Names, TEXT("；"));
+        }
+    }
+    {
+        TSharedRef<SWrapBox> Wrap = SNew(SWrapBox).UseAllottedWidth(true).InnerSlotPadding(FVector2D(6.f, 4.f));
+        if (IndicatorSelector.IsValid())
+        {
+            TArray<FString> Ids; TArray<FString> Names;
+            IndicatorSelector->GetSelectedIndicatorDetails(Ids, Names);
+            for (const FString& Name : Names)
+            {
+                Wrap->AddSlot()
+                [
+                    SNew(SBorder)
+                    .Padding(FMargin(8.f,4.f))
+                    .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+                    .BorderBackgroundColor(ScenarioStyle::Panel)
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(Name))
+                        .ColorAndOpacity(ScenarioStyle::Text)
+                        .Font(ScenarioStyle::Font(12))
+                        .WrapTextAt(300.f)
+                    ]
+                ];
+            }
+        }
+
+        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,6.f)
+        [
+            SNew(SBorder)
+            .Padding(8.f)
+            .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+            .BorderBackgroundColor(ScenarioStyle::Panel)
+            [
+                SNew(SVerticalBox)
+                + SVerticalBox::Slot().AutoHeight()
+                [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("已选指标（%d）"), IndicatorCount))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(13)) ]
+                + SVerticalBox::Slot().AutoHeight()
+                [
+                    (IndicatorCount>0)
+                    ? StaticCastSharedRef<SWidget>(Wrap)
+                    : StaticCastSharedRef<SWidget>( SNew(STextBlock).Text(FText::FromString(TEXT("无"))).ColorAndOpacity(ScenarioStyle::TextDim).Font(ScenarioStyle::Font(12)) )
+                ]
+            ]
+        ];
+    }
+
+    // Step1: 表格已选行（若有）
+    if (MainTable.IsValid())
+    {
+        TArray<int32> SelIdx; MainTable->GetSelectedRowIndices(SelIdx);
+        if (SelIdx.Num() > 0)
+        {
+            TSharedRef<SVerticalBox> list = SNew(SVerticalBox);
+            for (int32 idx : SelIdx)
+            {
+                TArray<FText> cols; MainTable->GetRowTexts(idx, cols);
+                const FString line = FString::Printf(TEXT("• %s | %s | %s | %s | %s | %s"),
+                    cols.IsValidIndex(0)? *cols[0].ToString(): TEXT(""),
+                    cols.IsValidIndex(1)? *cols[1].ToString(): TEXT(""),
+                    cols.IsValidIndex(2)? *cols[2].ToString(): TEXT(""),
+                    cols.IsValidIndex(3)? *cols[3].ToString(): TEXT(""),
+                    cols.IsValidIndex(4)? *cols[4].ToString(): TEXT(""),
+                    cols.IsValidIndex(5)? *cols[5].ToString(): TEXT("")
+                );
+                list->AddSlot().AutoHeight()[ SNew(STextBlock).Text(FText::FromString(line)).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)).WrapTextAt(1200.f) ];
+            }
+            Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,6.f)
+            [
+                SNew(SBorder).Padding(8.f).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).BorderBackgroundColor(ScenarioStyle::Panel)
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).Text(FText::FromString(TEXT("已选对象/算法（来自Step1）"))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(13)) ]
+                    + SVerticalBox::Slot().AutoHeight()[ list ]
+                ]
+            ];
+        }
+    }
+
+    // Step3: 环境参数（天气/时段/地图/密集度/反制方式/自定义部署开关/预设）
+    if (EnvironmentBuilder.IsValid())
+    {
+        static const TCHAR* WeatherNames[] = { TEXT("晴天"), TEXT("雨天"), TEXT("雾天") };
+        static const TCHAR* TimeNames[] = { TEXT("白天"), TEXT("夜晚") };
+        static const TCHAR* MapNames[] = { TEXT("沙漠"), TEXT("森林"), TEXT("雪地"), TEXT("海边") };
+        static const TCHAR* DensityNames[] = { TEXT("密集"), TEXT("正常"), TEXT("稀疏") };
+        static const TCHAR* CMNames[] = { TEXT("电磁干扰"), TEXT("通信干扰"), TEXT("目标移动") };
+
+        const int32 Wi = EnvironmentBuilder->GetWeatherIndex();
+        const int32 Ti = EnvironmentBuilder->GetTimeIndex();
+        const int32 Mi = EnvironmentBuilder->GetMapIndex();
+        const int32 Di = EnvironmentBuilder->GetDensityIndex();
+        TArray<int32> Cms; EnvironmentBuilder->GetCountermeasures(Cms);
+        const bool bCustom = EnvironmentBuilder->IsBlueCustomEnabled();
+        const int32 Pi = EnvironmentBuilder->GetPresetIndex();
+
+        FString CmText;
+        for (int32 i=0;i<Cms.Num();++i)
+        {
+            if (i>0) CmText += TEXT(", ");
+            if (Cms[i] >=0 && Cms[i] <=2) CmText += CMNames[Cms[i]];
+        }
+        if (CmText.IsEmpty()) CmText = TEXT("无");
+
+        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
+        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("天气/时段/地图：%s / %s / %s"), WeatherNames[Wi], TimeNames[Ti], MapNames[Mi])))
+          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+
+        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
+        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("密集度：%s"), DensityNames[Di])))
+          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+
+        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
+        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("反制方式：%s"), *CmText)))
+          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+
+        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
+        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("启用蓝方自定义部署：%s"), bCustom? TEXT("是"):TEXT("否"))))
+          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+
+        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
+        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("预设：%d"), Pi)))
+          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+    }
+
+    return Box;
 }
 
 TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep5()

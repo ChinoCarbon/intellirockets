@@ -21,6 +21,10 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
+    // Summary helpers
+    void GetSelectedRowIndices(TArray<int32>& OutIndices) const { OutIndices.Reset(); for (int32 i=0;i<SelectedRows.Num();++i){ if(SelectedRows[i]) OutIndices.Add(i);} }
+    void GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) const { OutColumns = (RowIndex>=0 && RowIndex<DemoRows.Num())? DemoRows[RowIndex] : TArray<FText>{}; }
+
 private:
 	TSharedRef<SWidget> BuildHeader();
 	TSharedRef<SWidget> BuildRows();

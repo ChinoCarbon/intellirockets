@@ -10,6 +10,36 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+void SIndicatorSelector::GetSelectedIndicatorDetails(TArray<FString>& OutIds, TArray<FString>& OutNames) const
+{
+    OutIds.Reset();
+    OutNames.Reset();
+    for (const FIndicatorCategory& Cat : IndicatorData.Categories)
+    {
+        for (const FIndicatorSubCategory& SubCat : Cat.SubCategories)
+        {
+            for (const FIndicatorInfo& Indicator : SubCat.Indicators)
+            {
+                if (SelectedIndicatorIds.Contains(Indicator.Id))
+                {
+                    OutIds.Add(Indicator.Id);
+                    // 组合展示内容：名称（英文名）: 描述
+                    FString Display = Indicator.Name;
+                    if (!Indicator.NameEn.IsEmpty())
+                    {
+                        Display += FString::Printf(TEXT("（%s）"), *Indicator.NameEn);
+                    }
+                    if (!Indicator.Description.IsEmpty())
+                    {
+                        Display += TEXT("：");
+                        Display += Indicator.Description;
+                    }
+                    OutNames.Add(Display);
+                }
+            }
+        }
+    }
+}
 
 void SIndicatorSelector::Construct(const FArguments& InArgs)
 {

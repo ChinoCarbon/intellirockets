@@ -15,6 +15,9 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
+    void GetSelectedIndicators(TArray<FString>& OutIds) const { OutIds.Reset(); for (const FString& Id : SelectedIndicatorIds) { OutIds.Add(Id); } }
+    void GetSelectedIndicatorDetails(TArray<FString>& OutIds, TArray<FString>& OutNames) const;
+
 private:
 	TSharedRef<SWidget> BuildCategoryList();      // 左侧分类列表
 	TSharedRef<SWidget> BuildIndicatorList();    // 中间指标列表

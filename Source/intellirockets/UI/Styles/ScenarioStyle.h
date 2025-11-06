@@ -59,6 +59,13 @@ namespace ScenarioStyle
 
 		return FSlateFontInfo(UsePath, Size, Hinting);
 	}
+
+	inline FSlateFontInfo BoldFont(int32 Size, EFontHinting Hinting = EFontHinting::Auto)
+	{
+		FSlateFontInfo Info = Font(Size, Hinting);
+		Info.TypefaceFontName = FName(TEXT("Bold"));
+		return Info;
+	}
 }
 
 

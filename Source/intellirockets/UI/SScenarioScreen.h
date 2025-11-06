@@ -26,6 +26,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	void SetStepIndex(int32 InStepIndex);
 
 private:
 	FReply OnPrevClicked();
@@ -49,7 +50,10 @@ private:
 	int32 ActiveTabIndex = 1; // 0: 智能感知算法测评, 1: 智能决策算法测评
 	int32 TestMethodIndex = 0; // 0: 正交测试, 1: 单独测试
 	TSharedPtr<SScenarioBreadcrumb> Breadcrumb;
-	TSharedPtr<SScenarioMainTable> MainTable;
+	TSharedPtr<SScenarioMainTable> MainTable; // Step1
+	TSharedPtr<class SIndicatorSelector> IndicatorSelector; // Step2
+	TSharedPtr<class SEnvironmentBuilder> EnvironmentBuilder; // Step3
+	TSharedPtr<class SVerticalBox> DecisionContentBox; // content container for step area
 
 	FOnPrevStep OnPrevStep;
 	FOnNextStep OnNextStep;
