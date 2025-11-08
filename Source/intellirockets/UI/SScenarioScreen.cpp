@@ -13,7 +13,6 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
-#include "Widgets/Layout/SWrapBox.h"
 
 void SScenarioScreen::Construct(const FArguments& InArgs)
 {
@@ -22,6 +21,7 @@ void SScenarioScreen::Construct(const FArguments& InArgs)
 	OnNextStep = InArgs._OnNextStep;
 	OnSaveAll = InArgs._OnSaveAll;
 	OnBackToMainMenu = InArgs._OnBackToMainMenu;
+	OnStartTest = InArgs._OnStartTest;
 
 	ChildSlot
 	[
@@ -349,176 +349,324 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep3()
 
 TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 {
-    // 汇总 Step1~3 的选择，展示为总览
-    TSharedRef<SVerticalBox> Box = SNew(SVerticalBox);
+	FScenarioTestConfig Snapshot;
+	CollectScenarioConfig(Snapshot);
 
-    // 标题
-    Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,8.f)
-    [
-        SNew(SBorder)
-        .Padding(8.f)
-        .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
-        .BorderBackgroundColor(ScenarioStyle::Panel)
-        [
-            SNew(STextBlock)
-            .Text(FText::FromString(TEXT("测评配置总览（Step1~Step3）")))
-            .ColorAndOpacity(ScenarioStyle::Text)
-            .Font(ScenarioStyle::Font(16))
-        ]
-    ];
+	// 容器
+	TSharedRef<SVerticalBox> Box = SNew(SVerticalBox);
 
-    // Step1: 测评方法（正交/单独）
-    const FString MethodText = (TestMethodIndex == 0) ? TEXT("正交测试") : TEXT("单独测试");
-    Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,6.f)
-    [
-        SNew(SBorder)
-        .Padding(8.f)
-        .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
-        .BorderBackgroundColor(ScenarioStyle::Panel)
-        [
-            SNew(STextBlock)
-            .Text(FText::FromString(FString::Printf(TEXT("测评方法：%s"), *MethodText)))
-            .ColorAndOpacity(ScenarioStyle::Text)
-            .Font(ScenarioStyle::Font(13))
-        ]
-    ];
+	const auto MakeCard = [](const FString& Title, const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget>
+	{
+		return SNew(SBorder)
+			.Padding(12.f)
+			.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+			.BorderBackgroundColor(ScenarioStyle::Panel)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.f,0.f,0.f,6.f)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(Title))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::BoldFont(13))
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					Content
+				]
+			];
+	};
 
-    // Step2: 指标（数量与内容列表：名称（英文）: 描述）
-    int32 IndicatorCount = 0; FString IndicatorsLine;
-    if (IndicatorSelector.IsValid())
-    {
-        TArray<FString> Ids; TArray<FString> Names;
-        IndicatorSelector->GetSelectedIndicatorDetails(Ids, Names);
-        IndicatorCount = Names.Num();
-        if (IndicatorCount > 0)
-        {
-            IndicatorsLine = FString::Join(Names, TEXT("；"));
-        }
-    }
-    {
-        TSharedRef<SWrapBox> Wrap = SNew(SWrapBox).UseAllottedWidth(true).InnerSlotPadding(FVector2D(6.f, 4.f));
-        if (IndicatorSelector.IsValid())
-        {
-            TArray<FString> Ids; TArray<FString> Names;
-            IndicatorSelector->GetSelectedIndicatorDetails(Ids, Names);
-            for (const FString& Name : Names)
-            {
-                Wrap->AddSlot()
-                [
-                    SNew(SBorder)
-                    .Padding(FMargin(8.f,4.f))
-                    .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
-                    .BorderBackgroundColor(ScenarioStyle::Panel)
-                    [
-                        SNew(STextBlock)
-                        .Text(FText::FromString(Name))
-                        .ColorAndOpacity(ScenarioStyle::Text)
-                        .Font(ScenarioStyle::Font(12))
-                        .WrapTextAt(300.f)
-                    ]
-                ];
-            }
-        }
+	// 标题
+	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	[
+		SNew(SBorder)
+		.Padding(12.f)
+		.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+		.BorderBackgroundColor(ScenarioStyle::Panel)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("测评配置总览（Step1~Step3）")))
+			.ColorAndOpacity(ScenarioStyle::Text)
+			.Font(ScenarioStyle::BoldFont(16))
+		]
+	];
 
-        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,6.f)
-        [
-            SNew(SBorder)
-            .Padding(8.f)
-            .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
-            .BorderBackgroundColor(ScenarioStyle::Panel)
-            [
-                SNew(SVerticalBox)
-                + SVerticalBox::Slot().AutoHeight()
-                [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("已选指标（%d）"), IndicatorCount))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(13)) ]
-                + SVerticalBox::Slot().AutoHeight()
-                [
-                    (IndicatorCount>0)
-                    ? StaticCastSharedRef<SWidget>(Wrap)
-                    : StaticCastSharedRef<SWidget>( SNew(STextBlock).Text(FText::FromString(TEXT("无"))).ColorAndOpacity(ScenarioStyle::TextDim).Font(ScenarioStyle::Font(12)) )
-                ]
-            ]
-        ];
-    }
+	// Step2: 指标详情
+	int32 IndicatorCount = 0;
+	TArray<FString> IndicatorIds;
+	TArray<FString> IndicatorDetails;
+	if (IndicatorSelector.IsValid())
+	{
+		IndicatorSelector->GetSelectedIndicatorDetails(IndicatorIds, IndicatorDetails);
+		IndicatorCount = IndicatorDetails.Num();
+	}
 
-    // Step1: 表格已选行（若有）
-    if (MainTable.IsValid())
-    {
-        TArray<int32> SelIdx; MainTable->GetSelectedRowIndices(SelIdx);
-        if (SelIdx.Num() > 0)
-        {
-            TSharedRef<SVerticalBox> list = SNew(SVerticalBox);
-            for (int32 idx : SelIdx)
-            {
-                TArray<FText> cols; MainTable->GetRowTexts(idx, cols);
-                const FString line = FString::Printf(TEXT("• %s | %s | %s | %s | %s | %s"),
-                    cols.IsValidIndex(0)? *cols[0].ToString(): TEXT(""),
-                    cols.IsValidIndex(1)? *cols[1].ToString(): TEXT(""),
-                    cols.IsValidIndex(2)? *cols[2].ToString(): TEXT(""),
-                    cols.IsValidIndex(3)? *cols[3].ToString(): TEXT(""),
-                    cols.IsValidIndex(4)? *cols[4].ToString(): TEXT(""),
-                    cols.IsValidIndex(5)? *cols[5].ToString(): TEXT("")
-                );
-                list->AddSlot().AutoHeight()[ SNew(STextBlock).Text(FText::FromString(line)).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)).WrapTextAt(1200.f) ];
-            }
-            Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,6.f)
-            [
-                SNew(SBorder).Padding(8.f).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).BorderBackgroundColor(ScenarioStyle::Panel)
-                [
-                    SNew(SVerticalBox)
-                    + SVerticalBox::Slot().AutoHeight()[ SNew(STextBlock).Text(FText::FromString(TEXT("已选对象/算法（来自Step1）"))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(13)) ]
-                    + SVerticalBox::Slot().AutoHeight()[ list ]
-                ]
-            ];
-        }
-    }
+	// Step1: 测评方法
+	const FString MethodText = (Snapshot.TestMethodIndex == 0) ? TEXT("正交测试") : TEXT("单独测试");
+	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	[
+		SNew(SBorder)
+		.Padding(12.f)
+		.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+		.BorderBackgroundColor(ScenarioStyle::Panel)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.f,0.f,8.f,0.f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("测评方法")))
+				.ColorAndOpacity(ScenarioStyle::Text)
+				.Font(ScenarioStyle::BoldFont(13))
+			]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(MethodText))
+				.ColorAndOpacity(ScenarioStyle::TextDim)
+				.Font(ScenarioStyle::Font(12))
+			]
+		]
+	];
 
-    // Step3: 环境参数（天气/时段/地图/密集度/反制方式/自定义部署开关/预设）
-    if (EnvironmentBuilder.IsValid())
-    {
-        static const TCHAR* WeatherNames[] = { TEXT("晴天"), TEXT("雨天"), TEXT("雾天") };
-        static const TCHAR* TimeNames[] = { TEXT("白天"), TEXT("夜晚") };
-        static const TCHAR* MapNames[] = { TEXT("沙漠"), TEXT("森林"), TEXT("雪地"), TEXT("海边") };
-        static const TCHAR* DensityNames[] = { TEXT("密集"), TEXT("正常"), TEXT("稀疏") };
-        static const TCHAR* CMNames[] = { TEXT("电磁干扰"), TEXT("通信干扰"), TEXT("目标移动") };
+	// Step2 card：
+	{
+	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	[
+		SNew(SBorder)
+		.Padding(12.f)
+		.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+		.BorderBackgroundColor(ScenarioStyle::Panel)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(FString::Printf(TEXT("已选指标（%d）"), IndicatorCount)))
+				.ColorAndOpacity(ScenarioStyle::Text)
+				.Font(ScenarioStyle::BoldFont(13))
+			]
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				(IndicatorCount > 0 && IndicatorSelector.IsValid())
+				? StaticCastSharedRef<SWidget>([&]()
+				{
+					TSharedRef<SVerticalBox> ScrollBox = SNew(SVerticalBox);
+					for (int32 i=0; i<IndicatorDetails.Num(); ++i)
+					{
+						ScrollBox->AddSlot().AutoHeight().Padding(0.f,4.f)
+						[
+							SNew(STextBlock)
+							.Text(FText::FromString(FString::Printf(TEXT("• %s"), *IndicatorDetails[i])))
+							.ColorAndOpacity(ScenarioStyle::TextDim)
+							.Font(ScenarioStyle::Font(12))
+							.WrapTextAt(1100.f)
+						];
+					}
+					return StaticCastSharedRef<SWidget>(ScrollBox);
+				}())
+				: StaticCastSharedRef<SWidget>( SNew(STextBlock).Text(FText::FromString(TEXT("未选择指标"))).ColorAndOpacity(ScenarioStyle::TextDim).Font(ScenarioStyle::Font(12)) )
+			]
+		]
+	];
+	}
 
-        const int32 Wi = EnvironmentBuilder->GetWeatherIndex();
-        const int32 Ti = EnvironmentBuilder->GetTimeIndex();
-        const int32 Mi = EnvironmentBuilder->GetMapIndex();
-        const int32 Di = EnvironmentBuilder->GetDensityIndex();
-        TArray<int32> Cms; EnvironmentBuilder->GetCountermeasures(Cms);
-        const bool bCustom = EnvironmentBuilder->IsBlueCustomEnabled();
-        const int32 Pi = EnvironmentBuilder->GetPresetIndex();
+	// Step1：表格已选行
+	{
+		TSharedRef<SVerticalBox> ListBox = SNew(SVerticalBox);
+		if (Snapshot.SelectedTableRowTexts.Num() > 0)
+		{
+			for (const TArray<FString>& Row : Snapshot.SelectedTableRowTexts)
+			{
+				FString Line = TEXT("• ");
+				for (int32 c=0; c<Row.Num(); ++c)
+				{
+					if (c>0) Line += TEXT(" | ");
+					Line += Row[c];
+				}
+				ListBox->AddSlot().AutoHeight().Padding(0.f,2.f)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(Line))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::Font(12))
+					.WrapTextAt(1200.f)
+				];
+			}
+		}
+		else
+		{
+			ListBox->AddSlot().AutoHeight()
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("未选择对象/算法")))
+				.ColorAndOpacity(ScenarioStyle::TextDim)
+				.Font(ScenarioStyle::Font(12))
+			];
+		}
 
-        FString CmText;
-        for (int32 i=0;i<Cms.Num();++i)
-        {
-            if (i>0) CmText += TEXT(", ");
-            if (Cms[i] >=0 && Cms[i] <=2) CmText += CMNames[Cms[i]];
-        }
-        if (CmText.IsEmpty()) CmText = TEXT("无");
+		Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+		[
+			SNew(SBorder).Padding(12.f).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).BorderBackgroundColor(ScenarioStyle::Panel)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("已选对象/算法（来自Step1）")))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::BoldFont(13))
+				]
+				+ SVerticalBox::Slot().AutoHeight()[ ListBox ]
+			]
+		];
+	}
 
-        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
-        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("天气/时段/地图：%s / %s / %s"), WeatherNames[Wi], TimeNames[Ti], MapNames[Mi])))
-          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+	// Step3 card（使用快照数据展示）
+	{
+		static const TCHAR* WeatherNames[] = { TEXT("晴天"), TEXT("雨天"), TEXT("雾天") };
+		static const TCHAR* TimeNames[] = { TEXT("白天"), TEXT("夜晚") };
+		static const TCHAR* MapNames[] = { TEXT("沙漠"), TEXT("森林"), TEXT("雪地"), TEXT("海边") };
+		static const TCHAR* DensityNames[] = { TEXT("密集"), TEXT("正常"), TEXT("稀疏") };
+		static const TCHAR* CountermeasureNames[] = { TEXT("电磁干扰"), TEXT("通信干扰"), TEXT("目标移动") };
 
-        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
-        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("密集度：%s"), DensityNames[Di])))
-          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		const FString WeatherStr = WeatherNames[FMath::Clamp(Snapshot.WeatherIndex, 0, 2)];
+		const FString TimeStr = TimeNames[FMath::Clamp(Snapshot.TimeIndex, 0, 1)];
+		const FString MapStr = MapNames[FMath::Clamp(Snapshot.MapIndex, 0, 3)];
+		const FString DensityStr = DensityNames[FMath::Clamp(Snapshot.DensityIndex, 0, 2)];
 
-        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
-        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("反制方式：%s"), *CmText)))
-          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		FString CmStr;
+		for (int32 i=0;i<Snapshot.CountermeasureIndices.Num();++i)
+		{
+			if (i>0) CmStr += TEXT("、");
+			const int32 Index = FMath::Clamp(Snapshot.CountermeasureIndices[i], 0, 2);
+			CmStr += CountermeasureNames[Index];
+		}
+		if (CmStr.IsEmpty())
+		{
+			CmStr = TEXT("无");
+		}
 
-        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
-        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("启用蓝方自定义部署：%s"), bCustom? TEXT("是"):TEXT("否"))))
-          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		const FString LevelPath = Snapshot.MapLevelName.IsNone() ? TEXT("未指定（将保持当前关卡）") : Snapshot.MapLevelName.ToString();
 
-        Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,4.f)
-        [ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("预设：%d"), Pi)))
-          .ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
-    }
+		TSharedRef<SVerticalBox> EnvironmentCard = SNew(SVerticalBox);
+		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("地图：%s（%s）"), *MapStr, *LevelPath))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("天气 / 时段：%s / %s"), *WeatherStr, *TimeStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("密集度：%s"), *DensityStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("反制方式：%s"), *CmStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("启用蓝方自定义部署：%s"), Snapshot.bBlueCustomDeployment ? TEXT("是") : TEXT("否")))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("预设：%s"), Snapshot.PresetIndex >= 0 ? *FString::Printf(TEXT("预设%d"), Snapshot.PresetIndex) : TEXT("未使用预设")))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
 
-    return Box;
+		Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+		[ MakeCard(TEXT("环境参数（来自 Step3）"), EnvironmentCard) ];
+	}
+
+	// 开始测试按钮
+	Box->AddSlot().AutoHeight().Padding(0.f,24.f,0.f,0.f)
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.f).HAlign(HAlign_Center)
+		[
+			SNew(SButton)
+			.ButtonStyle(FCoreStyle::Get(), "NoBorder")
+			.ContentPadding(FMargin(24.f,12.f))
+			.OnClicked_Lambda([this]()
+			{
+				if (OnStartTest.IsBound())
+				{
+					OnStartTest.Execute();
+				}
+				return FReply::Handled();
+			})
+			[
+				SNew(SBorder)
+				.Padding(FMargin(18.f,10.f))
+				.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+				.BorderBackgroundColor(ScenarioStyle::Accent)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("开始测试")))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::BoldFont(14))
+					.Justification(ETextJustify::Center)
+				]
+			]
+		]
+	];
+
+	return Box;
+}
+
+bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) const
+{
+	OutConfig.TestMethodIndex = TestMethodIndex;
+
+	OutConfig.SelectedTableRowIndices.Reset();
+	OutConfig.SelectedTableRowTexts.Reset();
+	if (MainTable.IsValid())
+	{
+		MainTable->GetSelectedRowIndices(OutConfig.SelectedTableRowIndices);
+		for (int32 idx : OutConfig.SelectedTableRowIndices)
+		{
+			TArray<FText> Cols;
+			MainTable->GetRowTexts(idx, Cols);
+			TArray<FString> Row;
+			for (const FText& Txt : Cols)
+			{
+				Row.Add(Txt.ToString());
+			}
+			OutConfig.SelectedTableRowTexts.Add(Row);
+		}
+	}
+
+	OutConfig.SelectedIndicatorIds.Reset();
+	OutConfig.SelectedIndicatorDetails.Reset();
+	if (IndicatorSelector.IsValid())
+	{
+		IndicatorSelector->GetSelectedIndicatorDetails(OutConfig.SelectedIndicatorIds, OutConfig.SelectedIndicatorDetails);
+	}
+
+	if (EnvironmentBuilder.IsValid())
+	{
+		OutConfig.WeatherIndex = EnvironmentBuilder->GetWeatherIndex();
+		OutConfig.TimeIndex = EnvironmentBuilder->GetTimeIndex();
+		OutConfig.MapIndex = EnvironmentBuilder->GetMapIndex();
+		OutConfig.DensityIndex = EnvironmentBuilder->GetDensityIndex();
+		OutConfig.CountermeasureIndices.Reset();
+		EnvironmentBuilder->GetCountermeasures(OutConfig.CountermeasureIndices);
+		OutConfig.bBlueCustomDeployment = EnvironmentBuilder->IsBlueCustomEnabled();
+		OutConfig.PresetIndex = EnvironmentBuilder->GetPresetIndex();
+	}
+	else
+	{
+		OutConfig.CountermeasureIndices.Reset();
+		OutConfig.bBlueCustomDeployment = false;
+		OutConfig.PresetIndex = -1;
+	}
+
+	static const TCHAR* MapLevelPaths[] =
+	{
+		TEXT("/Game/Desert/Desert"),
+		TEXT("/Game/EF_Grounds/Maps/ExampleMap"),
+		TEXT("/Game/Maps/Snow/SnowMap"),
+		TEXT("/Game/Maps/Coast/CoastMap")
+	};
+	if (OutConfig.MapIndex >= 0 && OutConfig.MapIndex < UE_ARRAY_COUNT(MapLevelPaths))
+	{
+		OutConfig.MapLevelName = FName(MapLevelPaths[OutConfig.MapIndex]);
+	}
+	else
+	{
+		OutConfig.MapLevelName = NAME_None;
+	}
+
+	return true;
 }
 
 TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep5()

@@ -1,3 +1,21 @@
+#include "Containers/Set.h"
+
+struct FScenarioTestConfig
+{
+	int32 TestMethodIndex = 0;
+	TArray<int32> SelectedTableRowIndices;
+	TArray<TArray<FString>> SelectedTableRowTexts;
+	TArray<FString> SelectedIndicatorIds;
+	TArray<FString> SelectedIndicatorDetails;
+	int32 WeatherIndex = 0;
+	int32 TimeIndex = 0;
+	int32 MapIndex = 0;
+	FName MapLevelName = NAME_None;
+	int32 DensityIndex = 1;
+	TArray<int32> CountermeasureIndices;
+	bool bBlueCustomDeployment = false;
+	int32 PresetIndex = -1;
+};
 #pragma once
 
 #include "CoreMinimal.h"
@@ -10,6 +28,7 @@ DECLARE_DELEGATE(FOnPrevStep);
 DECLARE_DELEGATE(FOnNextStep);
 DECLARE_DELEGATE(FOnSaveAll);
 DECLARE_DELEGATE(FOnBackToMainMenu);
+DECLARE_DELEGATE(FOnStartTest);
 
 /**
  * 根界面：标题、说明、步骤导航、主表格、底部按钮。
@@ -23,10 +42,12 @@ public:
 		SLATE_EVENT(FOnNextStep, OnNextStep)
 		SLATE_EVENT(FOnSaveAll, OnSaveAll)
 		SLATE_EVENT(FOnBackToMainMenu, OnBackToMainMenu)
+		SLATE_EVENT(FOnStartTest, OnStartTest)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 	void SetStepIndex(int32 InStepIndex);
+	bool CollectScenarioConfig(FScenarioTestConfig& OutConfig) const;
 
 private:
 	FReply OnPrevClicked();
@@ -59,6 +80,7 @@ private:
 	FOnNextStep OnNextStep;
 	FOnSaveAll OnSaveAll;
 	FOnBackToMainMenu OnBackToMainMenu;
+	FOnStartTest OnStartTest;
 };
 
 
