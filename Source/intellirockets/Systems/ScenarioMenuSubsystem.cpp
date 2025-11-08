@@ -24,6 +24,8 @@
 #include "Engine/LevelBounds.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "NavigationSystem.h"
+#include "Engine/LevelStreaming.h"
+#include "TimerManager.h"
 
 void UScenarioMenuSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -34,6 +36,12 @@ void UScenarioMenuSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UScenarioMenuSubsystem::Deinitialize()
 {
+	if (UWorld* PendingWorld = PendingScenarioWorld.Get())
+	{
+		PendingWorld->GetTimerManager().ClearTimer(PendingScenarioTimerHandle);
+	}
+	PendingScenarioWorld = nullptr;
+
 	FWorldDelegates::OnPostWorldInitialization.Remove(WorldHandle);
 	if (GEngine && GEngine->GameViewport && Screen.IsValid())
 	{
@@ -51,9 +59,14 @@ void UScenarioMenuSubsystem::OnWorldReady(UWorld* World, const UWorld::Initializ
 	{
 		if (bIsRunningScenario && bHasPendingScenarioConfig)
 		{
-			ApplyEnvironmentSettings(World, PendingScenarioConfig);
-			DeployBlueForScenario(World, PendingScenarioConfig);
-			bHasPendingScenarioConfig = false;
+			PendingScenarioWorld = World;
+			bPendingScenarioWaitingLogged = false;
+			if (World->GetTimerManager().IsTimerActive(PendingScenarioTimerHandle))
+			{
+				World->GetTimerManager().ClearTimer(PendingScenarioTimerHandle);
+			}
+			World->GetTimerManager().SetTimer(PendingScenarioTimerHandle, FTimerDelegate::CreateUObject(this, &UScenarioMenuSubsystem::FinalizeScenarioAfterLoad), 0.25f, true);
+			UE_LOG(LogTemp, Log, TEXT("OnWorldReady: deferring scenario finalization until streaming levels load."));
 			return;
 		}
 
@@ -241,6 +254,84 @@ void UScenarioMenuSubsystem::ApplyEnvironmentSettings(UWorld* World, const FScen
 	UE_LOG(LogTemp, Log, TEXT("Environment settings applied. Weather=%d Time=%d MapIndex=%d"), Config.WeatherIndex, Config.TimeIndex, Config.MapIndex);
 }
 
+void UScenarioMenuSubsystem::FinalizeScenarioAfterLoad()
+{
+	UWorld* World = PendingScenarioWorld.Get();
+	if (!World)
+	{
+		return;
+	}
+
+	if (!bHasPendingScenarioConfig)
+	{
+		World->GetTimerManager().ClearTimer(PendingScenarioTimerHandle);
+		PendingScenarioWorld = nullptr;
+		bPendingScenarioWaitingLogged = false;
+		return;
+	}
+
+	if (!AreScenarioLevelsReady(World))
+	{
+		if (!bPendingScenarioWaitingLogged)
+		{
+			UE_LOG(LogTemp, Log, TEXT("FinalizeScenarioAfterLoad: waiting for streaming levels to finish loading..."));
+			bPendingScenarioWaitingLogged = true;
+		}
+		return;
+	}
+
+	World->GetTimerManager().ClearTimer(PendingScenarioTimerHandle);
+	PendingScenarioWorld = nullptr;
+	bPendingScenarioWaitingLogged = false;
+
+	if (bHasPendingScenarioConfig)
+	{
+		UE_LOG(LogTemp, Log, TEXT("FinalizeScenarioAfterLoad: streaming complete, applying scenario configuration."));
+		ApplyEnvironmentSettings(World, PendingScenarioConfig);
+		DeployBlueForScenario(World, PendingScenarioConfig);
+		bHasPendingScenarioConfig = false;
+	}
+}
+
+bool UScenarioMenuSubsystem::AreScenarioLevelsReady(UWorld* World) const
+{
+	if (!World)
+	{
+		return false;
+	}
+
+	if (World->IsInSeamlessTravel())
+	{
+		return false;
+	}
+
+	if (!World->AreActorsInitialized())
+	{
+		return false;
+	}
+
+	const TArray<ULevelStreaming*>& StreamingLevels = World->GetStreamingLevels();
+	for (ULevelStreaming* Streaming : StreamingLevels)
+	{
+		if (!Streaming)
+		{
+			continue;
+		}
+
+		if (Streaming->ShouldBeLoaded() && !Streaming->IsLevelLoaded())
+		{
+			return false;
+		}
+
+		if (Streaming->ShouldBeVisible() && !Streaming->IsLevelVisible())
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenarioTestConfig& Config)
 {
 	if (!World)
@@ -280,22 +371,7 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 	ClearSpawnedBlueUnits();
 	ActiveBlueUnits.Reset();
 
-	if (APlayerController* PC = World->GetFirstPlayerController())
-	{
-		if (APawn* Pawn = PC->GetPawn())
-		{
-			InitialCameraLocation = Pawn->GetActorLocation();
-			InitialCameraRotation = Pawn->GetActorRotation();
-			bHasInitialCameraTransform = true;
-		}
-		else if (AActor* ViewTarget = PC->GetViewTarget())
-		{
-			InitialCameraLocation = ViewTarget->GetActorLocation();
-			InitialCameraRotation = ViewTarget->GetActorRotation();
-			bHasInitialCameraTransform = true;
-		}
-	}
-
+	// 暂存玩家初始视角
 	APlayerStart* PlayerStart = Cast<APlayerStart>(UGameplayStatics::GetActorOfClass(World, APlayerStart::StaticClass()));
 	FVector Origin = FVector::ZeroVector;
 	FRotator Facing = FRotator::ZeroRotator;
@@ -316,157 +392,143 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 		Right = FVector::RightVector;
 	}
 
-	FBox SpawnBounds(ForceInit);
-	if (ALevelBounds* LevelBounds = Cast<ALevelBounds>(UGameplayStatics::GetActorOfClass(World, ALevelBounds::StaticClass())))
+	int32 UnitCount = 8;
+	int32 TotalMin = 6;
+	int32 TotalMax = 8;
+	int32 MinPerSpot = 1;
+	int32 MaxPerSpot = 3;
+
+	switch (Config.DensityIndex)
 	{
-		SpawnBounds = LevelBounds->GetComponentsBoundingBox(true);
+	case 0: // 密集
+		TotalMin = 9;
+		TotalMax = 11;
+		MinPerSpot = 3;
+		MaxPerSpot = 4;
+		break;
+case 2: // 稀疏
+		TotalMin = 3;
+		TotalMax = 5;
+		MinPerSpot = 1;
+		MaxPerSpot = 2;
+		break;
+default: // 正常
+		TotalMin = 6;
+		TotalMax = 8;
+		MinPerSpot = 1;
+		MaxPerSpot = 3;
+		break;
 	}
 
-	if (!SpawnBounds.IsValid || SpawnBounds.GetExtent().IsNearlyZero())
+	int32 DesiredTotalUnits = FMath::RandRange(TotalMin, TotalMax);
+	UnitCount = DesiredTotalUnits;
+
+	// Collect spawn markers: prefer tags, fallback to name pattern
+	TArray<AActor*> SpawnMarkers;
+	const FName PrimaryTag = FName(TEXT("BluePotentialDeployLocation"));
+	const FName LegacyTag = FName(TEXT("PotentialBlueDeployLocation"));
+	UGameplayStatics::GetAllActorsWithTag(World, PrimaryTag, SpawnMarkers);
+	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: actors with tag %s = %d"), *PrimaryTag.ToString(), SpawnMarkers.Num());
+
+	if (LegacyTag != PrimaryTag)
 	{
-		const FVector DefaultExtent(6000.f, 6000.f, 2000.f);
-		SpawnBounds = FBox(Origin - DefaultExtent, Origin + DefaultExtent);
-		UE_LOG(LogTemp, Warning, TEXT("SpawnBounds invalid, fallback to default around PlayerStart. Min=%s Max=%s"), *SpawnBounds.Min.ToString(), *SpawnBounds.Max.ToString());
-	}
-	else
-	{
-		SpawnBounds = SpawnBounds.ExpandBy(FVector(-500.f, -500.f, 0.f));
-		UE_LOG(LogTemp, Log, TEXT("SpawnBounds from LevelBounds Min=%s Max=%s"), *SpawnBounds.Min.ToString(), *SpawnBounds.Max.ToString());
+		TArray<AActor*> LegacyActors;
+		UGameplayStatics::GetAllActorsWithTag(World, LegacyTag, LegacyActors);
+		if (LegacyActors.Num() > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: actors with legacy tag %s = %d"), *LegacyTag.ToString(), LegacyActors.Num());
+			for (AActor* Legacy : LegacyActors)
+			{
+				SpawnMarkers.AddUnique(Legacy);
+			}
+		}
 	}
 
-	FVector DeployCenter = SpawnBounds.GetCenter();
-	const float OverviewHeight = FMath::Max(SpawnBounds.GetExtent().Z, 500.f) + 1500.f;
+	if (SpawnMarkers.Num() == 0)
+	{
+		TArray<AActor*> AllActors;
+		UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+		for (AActor* Actor : AllActors)
+		{
+			if (!Actor)
+			{
+				continue;
+			}
+
+			const FString ActorName = Actor->GetName();
+			if (ActorName.Contains(TEXT("BluePotentialDeployLocation")))
+			{
+				SpawnMarkers.Add(Actor);
+				UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: fallback picked actor %s (Class=%s)"), *ActorName, *Actor->GetClass()->GetName());
+			}
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: fallback name search matched %d actors"), SpawnMarkers.Num());
+
+		if (SpawnMarkers.Num() == 0)
+		{
+			const int32 SampleCount = FMath::Min(20, AllActors.Num());
+			UE_LOG(LogTemp, Warning, TEXT("DeployBlueForScenario: fallback failed. Sample of world actors:"));
+			for (int32 Index = 0; Index < SampleCount; ++Index)
+			{
+				AActor* Sample = AllActors[Index];
+				if (Sample)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("  [%d] %s (Class=%s, Tags=%d)"), Index, *Sample->GetName(), *Sample->GetClass()->GetName(), Sample->Tags.Num());
+				}
+			}
+		}
+	}
+
+	if (SpawnMarkers.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("DeployBlueForScenario: 未找到任何包含标签 %s/%s 或名称包含 BluePotentialDeployLocation 的部署点，无法生成蓝方单位."), *PrimaryTag.ToString(), *LegacyTag.ToString());
+		ShowBlueMonitor(World);
+		if (BlueMonitorWidget.IsValid())
+		{
+			BlueMonitorWidget->Refresh(ActiveBlueUnits);
+		}
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: collected %d deployment markers"), SpawnMarkers.Num());
+
+	// 计算部署区域包围盒用于摄像机
+	FBox DeployBounds(ForceInit);
+	for (AActor* Marker : SpawnMarkers)
+	{
+		if (Marker)
+		{
+			DeployBounds += Marker->GetActorLocation();
+		}
+	}
+
+	if (!DeployBounds.IsValid)
+	{
+		const FVector DefaultExtent(2000.f, 2000.f, 800.f);
+		DeployBounds = FBox(Origin - DefaultExtent, Origin + DefaultExtent);
+	}
+
+	FVector DeployCenter = DeployBounds.GetCenter();
+	const float OverviewHeight = FMath::Max(DeployBounds.GetExtent().Z, 500.f) + 1500.f;
 	OverviewHomeLocation = DeployCenter + FVector(0.f, 0.f, OverviewHeight);
 	OverviewHomeRotation = UKismetMathLibrary::FindLookAtRotation(OverviewHomeLocation, DeployCenter);
 	bHasOverviewHome = true;
 	EnsureOverviewPawn(World);
 
-	int32 UnitCount = 8;
-	float MinSpacing = 900.f;
-	float MinDistanceFromPlayer = 2000.f;
-
-	switch (Config.DensityIndex)
+	// Shuffle markers
+	for (int32 i = SpawnMarkers.Num() - 1; i > 0; --i)
 	{
-	case 0: // 密集
-		UnitCount = 12;
-		MinSpacing = 650.f;
-		MinDistanceFromPlayer = 1500.f;
-		break;
-case 2: // 稀疏
-		UnitCount = 4;
-		MinSpacing = 1400.f;
-		MinDistanceFromPlayer = 3000.f;
-		break;
-default: // 正常
-		UnitCount = 8;
-		MinSpacing = 900.f;
-		MinDistanceFromPlayer = 2200.f;
-		break;
+		const int32 j = FMath::RandRange(0, i);
+		SpawnMarkers.Swap(i, j);
 	}
 
-	const int32 MaxPlacementAttempts = 120;
-	TArray<FVector> ChosenLocations;
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-FActorSpawnParameters SpawnParams;
-SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-for (int32 Index = 0; Index < UnitCount; ++Index)
+auto PlaceUnitAtLocation = [&](const FVector& BaseLocation, const FString& MarkerName)
 {
-	FVector SpawnLocation = DeployCenter;
-	bool bPlaced = false;
-	float BestScore = -FLT_MAX;
-
-	for (int32 Attempt = 0; Attempt < MaxPlacementAttempts; ++Attempt)
-	{
-		FVector Candidate(
-			FMath::FRandRange(SpawnBounds.Min.X, SpawnBounds.Max.X),
-			FMath::FRandRange(SpawnBounds.Min.Y, SpawnBounds.Max.Y),
-			SpawnBounds.Max.Z + 800.f);
-
-		if (FVector::Dist2D(Candidate, Origin) < MinDistanceFromPlayer)
-		{
-			continue;
-		}
-
-		bool bTooClose = false;
-		float NearestDistSq = FLT_MAX;
-		for (const FVector& Existing : ChosenLocations)
-		{
-			const float DistSq = FVector::DistSquared2D(Candidate, Existing);
-			NearestDistSq = FMath::Min(NearestDistSq, DistSq);
-			if (DistSq < MinSpacing * MinSpacing)
-			{
-				bTooClose = true;
-				break;
-			}
-		}
-		if (bTooClose)
-		{
-			continue;
-		}
-
-		const FVector TraceStart = Candidate + FVector(0.f, 0.f, 6000.f);
-		const FVector TraceEnd = Candidate - FVector(0.f, 0.f, 12000.f);
-		FHitResult Hit;
-		FCollisionQueryParams Params(NAME_None, false);
-		Params.bTraceComplex = true;
-		bool bHit = World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
-		FVector AdjustedLocation = Candidate;
-		if (bHit && Hit.bBlockingHit)
-		{
-			AdjustedLocation = Hit.ImpactPoint + FVector(0.f, 0.f, 30.f);
-		}
-		else
-		{
-			AdjustedLocation.Z = SpawnBounds.Max.Z + 150.f;
-		}
-
-		FVector NavLocation;
-		FNavLocation ProjectedNav;
-		UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World);
-		if (NavSys && NavSys->ProjectPointToNavigation(AdjustedLocation, ProjectedNav, FVector(500.f, 500.f, 1500.f)))
-		{
-			AdjustedLocation = ProjectedNav.Location;
-		}
-
-		AdjustedLocation.X = FMath::Clamp(AdjustedLocation.X, SpawnBounds.Min.X, SpawnBounds.Max.X);
-		AdjustedLocation.Y = FMath::Clamp(AdjustedLocation.Y, SpawnBounds.Min.Y, SpawnBounds.Max.Y);
-
-		const float Score = NearestDistSq;
-		if (Score > BestScore)
-		{
-			BestScore = Score;
-			SpawnLocation = AdjustedLocation;
-			bPlaced = true;
-		}
-	}
-
-	if (!bPlaced)
-	{
-		SpawnLocation = FVector(
-			FMath::Clamp(DeployCenter.X + FMath::FRandRange(-2000.f, 2000.f), SpawnBounds.Min.X, SpawnBounds.Max.X),
-			FMath::Clamp(DeployCenter.Y + FMath::FRandRange(-2000.f, 2000.f), SpawnBounds.Min.Y, SpawnBounds.Max.Y),
-			DeployCenter.Z + 120.f);
-
-		const FVector TraceStart = SpawnLocation + FVector(0.f, 0.f, 4000.f);
-		const FVector TraceEnd = SpawnLocation - FVector(0.f, 0.f, 8000.f);
-		FHitResult Hit;
-		FCollisionQueryParams Params(NAME_None, false);
-		Params.bTraceComplex = true;
-		if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params) && Hit.bBlockingHit)
-		{
-			SpawnLocation = Hit.ImpactPoint + FVector(0.f, 0.f, 30.f);
-		}
-		else if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World))
-		{
-			FNavLocation ProjectedNav;
-			if (NavSys->ProjectPointToNavigation(SpawnLocation, ProjectedNav, FVector(400.f, 400.f, 1200.f)))
-			{
-				SpawnLocation = ProjectedNav.Location + FVector(0.f, 0.f, 30.f);
-			}
-		}
-	}
-
+	FVector SpawnLocation = BaseLocation;
 	FRotator SpawnRotation = Facing;
 
 	const FVector TraceStart = SpawnLocation + FVector(0.f, 0.f, 6000.f);
@@ -474,7 +536,8 @@ for (int32 Index = 0; Index < UnitCount; ++Index)
 	FHitResult Hit;
 	FCollisionQueryParams Params(NAME_None, false);
 	Params.bTraceComplex = true;
-	if (World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params) && Hit.bBlockingHit)
+	bool bHit = World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+	if (bHit && Hit.bBlockingHit)
 	{
 		SpawnLocation = Hit.ImpactPoint + FVector(0.f, 0.f, 30.f);
 	}
@@ -487,19 +550,23 @@ for (int32 Index = 0; Index < UnitCount; ++Index)
 		}
 	}
 
+	UE_LOG(LogTemp, Log, TEXT("Placing unit near %s -> %s"), *MarkerName, *SpawnLocation.ToString());
+
 	AStaticMeshActor* Spawned = World->SpawnActor<AStaticMeshActor>(SpawnLocation, SpawnRotation, SpawnParams);
 	if (!Spawned)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DeployBlueForScenario: Failed to spawn blue unit at index %d"), Index);
-		continue;
+		UE_LOG(LogTemp, Warning, TEXT("Failed to spawn blue unit at %s"), *SpawnLocation.ToString());
+		return false;
 	}
 
 	if (UStaticMeshComponent* MeshComp = Spawned->GetStaticMeshComponent())
 	{
-		MeshComp->SetStaticMesh(UnitMesh);
 		MeshComp->SetMobility(EComponentMobility::Movable);
+		MeshComp->SetStaticMesh(UnitMesh);
 		MeshComp->SetRelativeScale3D(FVector(3.0f));
 		MeshComp->SetCollisionProfileName(TEXT("BlockAll"));
+		MeshComp->SetVisibility(true, true);
+		MeshComp->SetHiddenInGame(false);
 		if (UnitMaterial)
 		{
 			MeshComp->SetMaterial(0, UnitMaterial);
@@ -519,14 +586,41 @@ for (int32 Index = 0; Index < UnitCount; ++Index)
 	}
 
 	ActiveBlueUnits.Add(Spawned);
-	ChosenLocations.Add(SpawnLocation);
 
-	UE_LOG(LogTemp, Log, TEXT("Blue unit %d spawned at %s"), Index, *SpawnLocation.ToString());
+	UE_LOG(LogTemp, Log, TEXT("Blue unit spawned at %s"), *SpawnLocation.ToString());
+	return true;
+};
 
-	if (Index < 4)
+int32 UnitsRemaining = DesiredTotalUnits;
+int32 MarkerIndex = 0;
+
+while (UnitsRemaining > 0 && MarkerIndex < SpawnMarkers.Num())
+{
+	AActor* Marker = SpawnMarkers[MarkerIndex++];
+	if (!Marker)
 	{
-		UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: Spawned unit %d at %s rot %s"), Index, *SpawnLocation.ToString(), *SpawnRotation.ToString());
+		continue;
 	}
+
+	const FVector MarkerLocation = Marker->GetActorLocation();
+	const FString MarkerName = Marker->GetName();
+	const int32 UnitsForThisSpot = FMath::Min(FMath::RandRange(MinPerSpot, MaxPerSpot), UnitsRemaining);
+	UE_LOG(LogTemp, Log, TEXT("Marker %s allocated %d units"), *MarkerName, UnitsForThisSpot);
+
+	for (int32 i = 0; i < UnitsForThisSpot; ++i)
+	{
+		FVector Offset(FMath::FRandRange(-400.f, 400.f), FMath::FRandRange(-400.f, 400.f), 0.f);
+		if (!PlaceUnitAtLocation(MarkerLocation + Offset, MarkerName))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Failed to place unit at marker %s"), *MarkerName);
+		}
+		UnitsRemaining--;
+	}
+}
+
+if (UnitsRemaining > 0)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Not enough markers to place all blue units. Remaining=%d"), UnitsRemaining);
 }
 
 	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: Spawned %d blue units (DensityIndex=%d)."), ActiveBlueUnits.Num(), Config.DensityIndex);
@@ -597,8 +691,17 @@ UMaterialInterface* UScenarioMenuSubsystem::ResolveBlueUnitMaterial() const
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("ResolveBlueUnitMaterial: failed to load starter material at '%s'."), PlaceholderMaterialPath);
-			return nullptr;
+			UE_LOG(LogTemp, Warning, TEXT("ResolveBlueUnitMaterial: StarterContent material missing at '%s', falling back to default engine material."), PlaceholderMaterialPath);
+			FSoftObjectPath DefaultPath(TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+			if (UMaterialInterface* DefaultMat = Cast<UMaterialInterface>(DefaultPath.TryLoad()))
+			{
+				CachedMaterial = DefaultMat;
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("ResolveBlueUnitMaterial: failed to load default engine material."));
+				return nullptr;
+			}
 		}
 	}
 

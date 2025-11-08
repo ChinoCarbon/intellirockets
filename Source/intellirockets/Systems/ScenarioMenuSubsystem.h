@@ -32,6 +32,8 @@ private:
 	void ApplyEnvironmentSettings(UWorld* World, const FScenarioTestConfig& Config);
 	void DeployBlueForScenario(UWorld* World, const FScenarioTestConfig& Config);
 	void ClearSpawnedBlueUnits();
+	void FinalizeScenarioAfterLoad();
+	bool AreScenarioLevelsReady(UWorld* World) const;
 	UClass* ResolveBlueUnitClass() const;
 	class UStaticMesh* ResolveBlueUnitMesh() const;
 	class UMaterialInterface* ResolveBlueUnitMaterial() const;
@@ -52,6 +54,9 @@ private:
 	FScenarioTestConfig PendingScenarioConfig;
 	bool bHasPendingScenarioConfig = false;
 	bool bIsRunningScenario = false;
+	FTimerHandle PendingScenarioTimerHandle;
+	TWeakObjectPtr<UWorld> PendingScenarioWorld;
+	bool bPendingScenarioWaitingLogged = false;
 	TArray<TWeakObjectPtr<AActor>> ActiveBlueUnits;
 	TSharedPtr<SBlueUnitMonitor> BlueMonitorWidget;
 	TSharedPtr<SWidget> BlueMonitorRoot;
