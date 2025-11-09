@@ -341,11 +341,6 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 
 	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: start (Map=%s, Density=%d, Custom=%s)"), *Config.MapLevelName.ToString(), Config.DensityIndex, Config.bBlueCustomDeployment ? TEXT("true") : TEXT("false"));
 
-	if (Config.bBlueCustomDeployment)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("DeployBlueForScenario: Custom deployment is not implemented yet. Using automatic layout instead."));
-	}
-
 	UClass* UnitClass = ResolveBlueUnitClass();
 	if (!UnitClass)
 	{
@@ -353,23 +348,44 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 		return;
 	}
 
-	UStaticMesh* UnitMesh = ResolveBlueUnitMesh();
-	if (!UnitMesh)
+	UStaticMesh* DefaultUnitMesh = ResolveBlueUnitMeshByType(0);
+	if (!DefaultUnitMesh)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("DeployBlueForScenario: Failed to load placeholder mesh. Please verify StarterContent is enabled."));
 		return;
 	}
 
-	UMaterialInterface* UnitMaterial = ResolveBlueUnitMaterial();
-	if (!UnitMaterial)
+	UMaterialInterface* DefaultUnitMaterial = ResolveBlueUnitMaterialByType(0);
+	if (!DefaultUnitMaterial)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("DeployBlueForScenario: Failed to load placeholder material. Units will use default material."));
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: Using UnitClass=%s, Mesh=%s, Material=%s"), *UnitClass->GetName(), *UnitMesh->GetName(), UnitMaterial ? *UnitMaterial->GetName() : TEXT("None"));
+	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: Using UnitClass=%s, Mesh=%s, Material=%s"), *UnitClass->GetName(), *DefaultUnitMesh->GetName(), DefaultUnitMaterial ? *DefaultUnitMaterial->GetName() : TEXT("None"));
 
 	ClearSpawnedBlueUnits();
 	ActiveBlueUnits.Reset();
+	ActiveCountermeasureIndices = Config.CountermeasureIndices;
+	BlueUnitMeshes.Reset();
+	BlueUnitMaterials.Reset();
+
+	constexpr int32 UnitTypeCount = 3;
+	for (int32 TypeIndex = 0; TypeIndex < UnitTypeCount; ++TypeIndex)
+	{
+		UStaticMesh* MeshForType = ResolveBlueUnitMeshByType(TypeIndex);
+		if (!MeshForType)
+		{
+			MeshForType = DefaultUnitMesh;
+		}
+		BlueUnitMeshes.Add(MeshForType);
+
+		UMaterialInterface* MaterialForType = ResolveBlueUnitMaterialByType(TypeIndex);
+		if (!MaterialForType)
+		{
+			MaterialForType = DefaultUnitMaterial;
+		}
+		BlueUnitMaterials.Add(MaterialForType);
+	}
 
 	// 暂存玩家初始视角
 	APlayerStart* PlayerStart = Cast<APlayerStart>(UGameplayStatics::GetActorOfClass(World, APlayerStart::StaticClass()));
@@ -391,37 +407,23 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 	{
 		Right = FVector::RightVector;
 	}
+	BlueUnitFacing = Facing;
+	BlueForward = Forward;
+	BlueRight = Right;
 
-	int32 UnitCount = 8;
-	int32 TotalMin = 6;
-	int32 TotalMax = 8;
-	int32 MinPerSpot = 1;
-	int32 MaxPerSpot = 3;
-
+	int32 DesiredMarkerCount = 6;
 	switch (Config.DensityIndex)
 	{
 	case 0: // 密集
-		TotalMin = 9;
-		TotalMax = 11;
-		MinPerSpot = 3;
-		MaxPerSpot = 4;
+		DesiredMarkerCount = 8;
 		break;
-case 2: // 稀疏
-		TotalMin = 3;
-		TotalMax = 5;
-		MinPerSpot = 1;
-		MaxPerSpot = 2;
+	case 2: // 稀疏
+		DesiredMarkerCount = 3;
 		break;
-default: // 正常
-		TotalMin = 6;
-		TotalMax = 8;
-		MinPerSpot = 1;
-		MaxPerSpot = 3;
+	default: // 正常
+		DesiredMarkerCount = 5;
 		break;
 	}
-
-	int32 DesiredTotalUnits = FMath::RandRange(TotalMin, TotalMax);
-	UnitCount = DesiredTotalUnits;
 
 	// Collect spawn markers: prefer tags, fallback to name pattern
 	TArray<AActor*> SpawnMarkers;
@@ -483,11 +485,9 @@ default: // 正常
 	if (SpawnMarkers.Num() == 0)
 	{
 		UE_LOG(LogTemp, Error, TEXT("DeployBlueForScenario: 未找到任何包含标签 %s/%s 或名称包含 BluePotentialDeployLocation 的部署点，无法生成蓝方单位."), *PrimaryTag.ToString(), *LegacyTag.ToString());
+		bUsingCustomDeployment = false;
 		ShowBlueMonitor(World);
-		if (BlueMonitorWidget.IsValid())
-		{
-			BlueMonitorWidget->Refresh(ActiveBlueUnits);
-		}
+		RefreshBlueMonitor();
 		return;
 	}
 
@@ -516,119 +516,117 @@ default: // 正常
 	bHasOverviewHome = true;
 	EnsureOverviewPawn(World);
 
+	BlueDeployMarkers.Reset();
+	BlueMarkerSpawnCounts.Reset();
+	for (AActor* Marker : SpawnMarkers)
+	{
+		BlueDeployMarkers.Add(Marker);
+		BlueMarkerSpawnCounts.Add(0);
+	}
+
+	bUsingCustomDeployment = Config.bBlueCustomDeployment;
+
+	ShowBlueMonitor(World);
+
+	if (bUsingCustomDeployment)
+	{
+		UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: Custom deployment enabled. Waiting for operator input."));
+		RefreshBlueMonitor();
+		return;
+	}
+
 	// Shuffle markers
 	for (int32 i = SpawnMarkers.Num() - 1; i > 0; --i)
 	{
 		const int32 j = FMath::RandRange(0, i);
 		SpawnMarkers.Swap(i, j);
 	}
-
-	FActorSpawnParameters SpawnParams;
-	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-auto PlaceUnitAtLocation = [&](const FVector& BaseLocation, const FString& MarkerName)
-{
-	FVector SpawnLocation = BaseLocation;
-	FRotator SpawnRotation = Facing;
-
-	const FVector TraceStart = SpawnLocation + FVector(0.f, 0.f, 6000.f);
-	const FVector TraceEnd = SpawnLocation - FVector(0.f, 0.f, 12000.f);
-	FHitResult Hit;
-	FCollisionQueryParams Params(NAME_None, false);
-	Params.bTraceComplex = true;
-	bool bHit = World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
-	if (bHit && Hit.bBlockingHit)
+	int32 MarkersToUse = SpawnMarkers.Num();
+	if (DesiredMarkerCount > 0)
 	{
-		SpawnLocation = Hit.ImpactPoint + FVector(0.f, 0.f, 30.f);
+		MarkersToUse = FMath::Clamp(DesiredMarkerCount, 1, SpawnMarkers.Num());
 	}
-	else if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World))
+
+	for (int32 MarkerIndex = 0; MarkerIndex < MarkersToUse; ++MarkerIndex)
 	{
-		FNavLocation ProjectedNav;
-		if (NavSys->ProjectPointToNavigation(SpawnLocation, ProjectedNav, FVector(400.f, 400.f, 1200.f)))
+		AActor* Marker = SpawnMarkers[MarkerIndex];
+		if (!Marker)
 		{
-			SpawnLocation = ProjectedNav.Location + FVector(0.f, 0.f, 30.f);
+			continue;
+		}
+
+		const FVector MarkerLocation = Marker->GetActorLocation();
+		const FString MarkerName = Marker->GetName();
+		const int32 ExistingCount = BlueMarkerSpawnCounts.IsValidIndex(MarkerIndex) ? BlueMarkerSpawnCounts[MarkerIndex] : 0;
+		const int32 UnitsForThisSpot = FMath::RandRange(1, 4);
+		int32 LocalCount = 0;
+
+		UE_LOG(LogTemp, Log, TEXT("Marker %s allocated %d units (auto deployment)"), *MarkerName, UnitsForThisSpot);
+
+		for (int32 UnitIdx = 0; UnitIdx < UnitsForThisSpot; ++UnitIdx)
+		{
+			const int32 UnitType = FMath::RandRange(0, 2);
+			const int32 SlotIndex = ExistingCount + LocalCount;
+			constexpr float BaseRadius = 200.f;
+			constexpr float RadiusStep = 220.f;
+			constexpr int32 SlotsPerRing = 6;
+
+			const int32 RingIndex = SlotIndex / SlotsPerRing;
+			const int32 SlotIndexInRing = SlotIndex % SlotsPerRing;
+			const float AngleDeg = SlotIndexInRing * (360.f / SlotsPerRing) + UnitType * 12.f + FMath::FRandRange(-8.f, 8.f);
+			const float AngleRad = FMath::DegreesToRadians(AngleDeg);
+			const float Radius = BaseRadius + RingIndex * RadiusStep;
+
+			FVector ForwardDir = BlueForward;
+			if (!ForwardDir.Normalize())
+			{
+				ForwardDir = FVector::ForwardVector;
+			}
+			FVector RightDir = BlueRight;
+			if (!RightDir.Normalize())
+			{
+				RightDir = FVector::RightVector;
+			}
+
+			const FVector2D BaseDir(FMath::Cos(AngleRad), FMath::Sin(AngleRad));
+			FVector DesiredLocation = MarkerLocation
+				+ ForwardDir * (BaseDir.X * Radius)
+				+ RightDir * (BaseDir.Y * Radius);
+
+			const float Jitter = 25.f;
+			DesiredLocation += ForwardDir * FMath::FRandRange(-Jitter, Jitter);
+			DesiredLocation += RightDir * FMath::FRandRange(-Jitter, Jitter);
+
+			UStaticMesh* MeshForType = BlueUnitMeshes.IsValidIndex(UnitType) ? BlueUnitMeshes[UnitType].Get() : ResolveBlueUnitMeshByType(UnitType);
+			if (!MeshForType)
+			{
+				MeshForType = DefaultUnitMesh;
+			}
+
+			UMaterialInterface* MatForType = BlueUnitMaterials.IsValidIndex(UnitType) ? BlueUnitMaterials[UnitType].Get() : ResolveBlueUnitMaterialByType(UnitType);
+			if (!MatForType)
+			{
+				MatForType = DefaultUnitMaterial;
+			}
+
+			if (!SpawnBlueUnitAtLocation(World, DesiredLocation, BlueUnitFacing, MarkerName, MeshForType, MatForType, Config.CountermeasureIndices))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Failed to place unit at marker %s"), *MarkerName);
+			}
+			else
+			{
+				++LocalCount;
+			}
+		}
+
+		if (BlueMarkerSpawnCounts.IsValidIndex(MarkerIndex))
+		{
+			BlueMarkerSpawnCounts[MarkerIndex] = ExistingCount + LocalCount;
 		}
 	}
-
-	UE_LOG(LogTemp, Log, TEXT("Placing unit near %s -> %s"), *MarkerName, *SpawnLocation.ToString());
-
-	AStaticMeshActor* Spawned = World->SpawnActor<AStaticMeshActor>(SpawnLocation, SpawnRotation, SpawnParams);
-	if (!Spawned)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Failed to spawn blue unit at %s"), *SpawnLocation.ToString());
-		return false;
-	}
-
-	if (UStaticMeshComponent* MeshComp = Spawned->GetStaticMeshComponent())
-	{
-		MeshComp->SetMobility(EComponentMobility::Movable);
-		MeshComp->SetStaticMesh(UnitMesh);
-		MeshComp->SetRelativeScale3D(FVector(3.0f));
-		MeshComp->SetCollisionProfileName(TEXT("BlockAll"));
-		MeshComp->SetVisibility(true, true);
-		MeshComp->SetHiddenInGame(false);
-		if (UnitMaterial)
-		{
-			MeshComp->SetMaterial(0, UnitMaterial);
-		}
-	}
-
-	Spawned->Tags.AddUnique(FName(TEXT("BlueUnit")));
-	for (int32 Countermeasure : Config.CountermeasureIndices)
-	{
-		switch (Countermeasure)
-		{
-		case 0: Spawned->Tags.AddUnique(FName(TEXT("Blue_ECM"))); break;
-		case 1: Spawned->Tags.AddUnique(FName(TEXT("Blue_CommJamming"))); break;
-		case 2: Spawned->Tags.AddUnique(FName(TEXT("Blue_TargetMobility"))); break;
-		default: break;
-		}
-	}
-
-	ActiveBlueUnits.Add(Spawned);
-
-	UE_LOG(LogTemp, Log, TEXT("Blue unit spawned at %s"), *SpawnLocation.ToString());
-	return true;
-};
-
-int32 UnitsRemaining = DesiredTotalUnits;
-int32 MarkerIndex = 0;
-
-while (UnitsRemaining > 0 && MarkerIndex < SpawnMarkers.Num())
-{
-	AActor* Marker = SpawnMarkers[MarkerIndex++];
-	if (!Marker)
-	{
-		continue;
-	}
-
-	const FVector MarkerLocation = Marker->GetActorLocation();
-	const FString MarkerName = Marker->GetName();
-	const int32 UnitsForThisSpot = FMath::Min(FMath::RandRange(MinPerSpot, MaxPerSpot), UnitsRemaining);
-	UE_LOG(LogTemp, Log, TEXT("Marker %s allocated %d units"), *MarkerName, UnitsForThisSpot);
-
-	for (int32 i = 0; i < UnitsForThisSpot; ++i)
-	{
-		FVector Offset(FMath::FRandRange(-400.f, 400.f), FMath::FRandRange(-400.f, 400.f), 0.f);
-		if (!PlaceUnitAtLocation(MarkerLocation + Offset, MarkerName))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Failed to place unit at marker %s"), *MarkerName);
-		}
-		UnitsRemaining--;
-	}
-}
-
-if (UnitsRemaining > 0)
-{
-	UE_LOG(LogTemp, Warning, TEXT("Not enough markers to place all blue units. Remaining=%d"), UnitsRemaining);
-}
 
 	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: Spawned %d blue units (DensityIndex=%d)."), ActiveBlueUnits.Num(), Config.DensityIndex);
-	ShowBlueMonitor(World);
-	if (BlueMonitorWidget.IsValid())
-	{
-		BlueMonitorWidget->Refresh(ActiveBlueUnits);
-	}
+RefreshBlueMonitor();
 }
 
 void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
@@ -644,10 +642,15 @@ void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
 		}
 	}
 	ActiveBlueUnits.Reset();
-	if (BlueMonitorWidget.IsValid())
+	if (bUsingCustomDeployment)
 	{
-		BlueMonitorWidget->Refresh(ActiveBlueUnits);
+		for (int32& Count : BlueMarkerSpawnCounts)
+		{
+			Count = 0;
+		}
 	}
+
+	RefreshBlueMonitor();
 }
 
 UClass* UScenarioMenuSubsystem::ResolveBlueUnitClass() const
@@ -657,55 +660,82 @@ UClass* UScenarioMenuSubsystem::ResolveBlueUnitClass() const
 
 UStaticMesh* UScenarioMenuSubsystem::ResolveBlueUnitMesh() const
 {
-	static const TCHAR* PlaceholderMeshPath = TEXT("/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube");
-
-	static TWeakObjectPtr<UStaticMesh> CachedMesh;
-	if (!CachedMesh.IsValid())
-	{
-		FSoftObjectPath MeshPath(PlaceholderMeshPath);
-		if (UStaticMesh* LoadedMesh = Cast<UStaticMesh>(MeshPath.TryLoad()))
-		{
-			CachedMesh = LoadedMesh;
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("ResolveBlueUnitMesh: failed to load starter mesh at '%s'."), PlaceholderMeshPath);
-			return nullptr;
-		}
-	}
-
-	return CachedMesh.Get();
+	return ResolveBlueUnitMeshByType(0);
 }
 
 UMaterialInterface* UScenarioMenuSubsystem::ResolveBlueUnitMaterial() const
 {
-	static const TCHAR* PlaceholderMaterialPath = TEXT("/Game/StarterContent/Materials/M_Glow.M_Glow");
+	return ResolveBlueUnitMaterialByType(0);
+}
 
-	static TWeakObjectPtr<UMaterialInterface> CachedMaterial;
-	if (!CachedMaterial.IsValid())
+UStaticMesh* UScenarioMenuSubsystem::ResolveBlueUnitMeshByType(int32 TypeIndex) const
+{
+	static const TCHAR* MeshPaths[] =
 	{
-		FSoftObjectPath MaterialPath(PlaceholderMaterialPath);
-		if (UMaterialInterface* LoadedMat = Cast<UMaterialInterface>(MaterialPath.TryLoad()))
+		TEXT("/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"),
+		TEXT("/Game/StarterContent/Shapes/Shape_Sphere.Shape_Sphere"),
+		TEXT("/Game/StarterContent/Shapes/Shape_Cylinder.Shape_Cylinder"),
+	};
+
+	constexpr int32 MaxTypes = UE_ARRAY_COUNT(MeshPaths);
+	const int32 SafeIndex = FMath::Clamp(TypeIndex, 0, MaxTypes - 1);
+
+	static TWeakObjectPtr<UStaticMesh> MeshCache[MaxTypes];
+	if (!MeshCache[SafeIndex].IsValid())
+	{
+		FSoftObjectPath MeshPath(MeshPaths[SafeIndex]);
+		if (UStaticMesh* LoadedMesh = Cast<UStaticMesh>(MeshPath.TryLoad()))
 		{
-			CachedMaterial = LoadedMat;
+			MeshCache[SafeIndex] = LoadedMesh;
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ResolveBlueUnitMaterial: StarterContent material missing at '%s', falling back to default engine material."), PlaceholderMaterialPath);
+			UE_LOG(LogTemp, Warning, TEXT("ResolveBlueUnitMeshByType: failed to load mesh at '%s' (Type=%d)."), MeshPaths[SafeIndex], SafeIndex);
+			return nullptr;
+		}
+	}
+
+	return MeshCache[SafeIndex].Get();
+}
+
+UMaterialInterface* UScenarioMenuSubsystem::ResolveBlueUnitMaterialByType(int32 TypeIndex) const
+{
+	static const TCHAR* MaterialPaths[] =
+	{
+		TEXT("/Game/StarterContent/Materials/M_Glow.M_Glow"),
+		TEXT("/Game/StarterContent/Materials/M_Metal_Gold.M_Metal_Gold"),
+		TEXT("/Game/StarterContent/Materials/M_Metal_Copper.M_Metal_Copper"),
+	};
+
+	constexpr int32 MaxTypes = UE_ARRAY_COUNT(MaterialPaths);
+	const int32 SafeIndex = FMath::Clamp(TypeIndex, 0, MaxTypes - 1);
+
+	static TWeakObjectPtr<UMaterialInterface> MaterialCache[MaxTypes];
+	if (!MaterialCache[SafeIndex].IsValid())
+	{
+		FSoftObjectPath MaterialPath(MaterialPaths[SafeIndex]);
+		if (UMaterialInterface* LoadedMaterial = Cast<UMaterialInterface>(MaterialPath.TryLoad()))
+		{
+			MaterialCache[SafeIndex] = LoadedMaterial;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ResolveBlueUnitMaterialByType: failed to load material at '%s' (Type=%d)."), MaterialPaths[SafeIndex], SafeIndex);
+			// Fallback to default engine material
 			FSoftObjectPath DefaultPath(TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
 			if (UMaterialInterface* DefaultMat = Cast<UMaterialInterface>(DefaultPath.TryLoad()))
 			{
-				CachedMaterial = DefaultMat;
+				MaterialCache[SafeIndex] = DefaultMat;
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("ResolveBlueUnitMaterial: failed to load default engine material."));
+				UE_LOG(LogTemp, Error, TEXT("ResolveBlueUnitMaterialByType: failed to load default engine material."));
 				return nullptr;
 			}
 		}
 	}
 
-	return CachedMaterial.Get();
+	return MaterialCache[SafeIndex].Get();
 }
 
 void UScenarioMenuSubsystem::ShowBlueMonitor(UWorld* World)
@@ -718,7 +748,10 @@ void UScenarioMenuSubsystem::ShowBlueMonitor(UWorld* World)
 	if (!BlueMonitorRoot.IsValid())
 	{
 		SAssignNew(BlueMonitorWidget, SBlueUnitMonitor)
+			.Mode(bUsingCustomDeployment ? SBlueUnitMonitor::EMode::Markers : SBlueUnitMonitor::EMode::Units)
 			.OnFocusUnit(SBlueUnitMonitor::FFocusUnit::CreateUObject(this, &UScenarioMenuSubsystem::FocusCameraOnUnit))
+			.OnFocusMarker(SBlueUnitMonitor::FFocusMarker::CreateUObject(this, &UScenarioMenuSubsystem::FocusCameraOnMarker))
+			.OnSpawnAtMarker(SBlueUnitMonitor::FSpawnAtMarker::CreateUObject(this, &UScenarioMenuSubsystem::SpawnBlueUnitAtMarker))
 			.OnReturnCamera(FSimpleDelegate::CreateUObject(this, &UScenarioMenuSubsystem::ReturnCameraToInitial));
 
 		TSharedRef<SWidget> Overlay =
@@ -735,10 +768,7 @@ void UScenarioMenuSubsystem::ShowBlueMonitor(UWorld* World)
 		GEngine->GameViewport->AddViewportWidgetContent(Overlay, 400);
 	}
 
-	if (BlueMonitorWidget.IsValid())
-	{
-		BlueMonitorWidget->Refresh(ActiveBlueUnits);
-	}
+	RefreshBlueMonitor();
 }
 
 void UScenarioMenuSubsystem::HideBlueMonitor()
@@ -750,6 +780,64 @@ void UScenarioMenuSubsystem::HideBlueMonitor()
 	BlueMonitorRoot.Reset();
 	BlueMonitorWidget.Reset();
 	RestorePreviousPawn();
+}
+
+void UScenarioMenuSubsystem::RefreshBlueMonitor()
+{
+	if (!BlueMonitorWidget.IsValid())
+	{
+		return;
+	}
+
+	if (bUsingCustomDeployment)
+	{
+		BlueMonitorWidget->RefreshMarkers(BlueDeployMarkers, BlueMarkerSpawnCounts);
+	}
+	else
+	{
+		BlueMonitorWidget->RefreshUnits(ActiveBlueUnits);
+	}
+}
+
+void UScenarioMenuSubsystem::FocusCameraOnMarker(int32 Index)
+{
+	if (!bUsingCustomDeployment)
+	{
+		FocusCameraOnUnit(Index);
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || !BlueDeployMarkers.IsValidIndex(Index))
+	{
+		return;
+	}
+
+	AActor* Marker = BlueDeployMarkers[Index].Get();
+	if (!Marker)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("FocusCameraOnMarker: marker %d is no longer valid."), Index);
+		return;
+	}
+
+	const FVector TargetLocation = Marker->GetActorLocation();
+	FVector ForwardDir = BlueForward;
+	if (!ForwardDir.Normalize())
+	{
+		ForwardDir = FVector::ForwardVector;
+	}
+	const FVector CameraLocation = TargetLocation - ForwardDir * 800.f + FVector(0.f, 0.f, 500.f);
+	const FRotator CameraRotation = (TargetLocation - CameraLocation).Rotation();
+	EnsureOverviewPawn(World);
+	if (ASpectatorPawn* Pawn = OverviewPawn.Get())
+	{
+		Pawn->SetActorLocation(CameraLocation);
+		Pawn->SetActorRotation(CameraRotation);
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			PC->SetControlRotation(CameraRotation);
+		}
+	}
 }
 
 void UScenarioMenuSubsystem::FocusCameraOnUnit(int32 Index)
@@ -789,6 +877,90 @@ void UScenarioMenuSubsystem::FocusCameraOnUnit(int32 Index)
 		{
 			PC->SetControlRotation(CameraRotation);
 		}
+	}
+}
+
+void UScenarioMenuSubsystem::SpawnBlueUnitAtMarker(int32 MarkerIndex, int32 UnitType)
+{
+	if (!bUsingCustomDeployment)
+	{
+		return;
+	}
+
+	if (UnitType < 0)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World || !BlueDeployMarkers.IsValidIndex(MarkerIndex))
+	{
+		return;
+	}
+
+	AActor* Marker = BlueDeployMarkers[MarkerIndex].Get();
+	if (!Marker)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnBlueUnitAtMarker: marker %d is no longer valid."), MarkerIndex);
+		return;
+	}
+
+	const FVector TargetLocation = Marker->GetActorLocation();
+
+	FVector ForwardDir = BlueForward;
+	if (!ForwardDir.Normalize())
+	{
+		ForwardDir = FVector::ForwardVector;
+	}
+	FVector RightDir = BlueRight;
+	if (!RightDir.Normalize())
+	{
+		RightDir = FVector::RightVector;
+	}
+
+	const int32 ExistingCount = BlueMarkerSpawnCounts.IsValidIndex(MarkerIndex) ? BlueMarkerSpawnCounts[MarkerIndex] : 0;
+	constexpr float BaseRadius = 200.f;
+	constexpr float RadiusStep = 220.f;
+	const int32 SlotsPerRing = 6;
+
+	const int32 RingIndex = ExistingCount / SlotsPerRing;
+	const int32 SlotIndexInRing = ExistingCount % SlotsPerRing;
+	const int32 SafeType = FMath::Clamp(UnitType, 0, 2);
+
+	const float AngleDeg = SlotIndexInRing * (360.f / SlotsPerRing) + SafeType * 12.f;
+	const float AngleRad = FMath::DegreesToRadians(AngleDeg);
+	const float Radius = BaseRadius + RingIndex * RadiusStep;
+
+	const FVector2D BaseDir(FMath::Cos(AngleRad), FMath::Sin(AngleRad));
+	FVector DesiredLocation = TargetLocation
+		+ ForwardDir * (BaseDir.X * Radius)
+		+ RightDir * (BaseDir.Y * Radius);
+
+	const float Jitter = 25.f;
+	DesiredLocation += ForwardDir * FMath::FRandRange(-Jitter, Jitter);
+	DesiredLocation += RightDir * FMath::FRandRange(-Jitter, Jitter);
+
+	UStaticMesh* MeshForType = BlueUnitMeshes.IsValidIndex(SafeType) ? BlueUnitMeshes[SafeType].Get() : ResolveBlueUnitMeshByType(SafeType);
+	if (!MeshForType)
+	{
+		MeshForType = ResolveBlueUnitMeshByType(0);
+	}
+
+	UMaterialInterface* MaterialForType = BlueUnitMaterials.IsValidIndex(SafeType) ? BlueUnitMaterials[SafeType].Get() : ResolveBlueUnitMaterialByType(SafeType);
+	if (!MaterialForType)
+	{
+		MaterialForType = ResolveBlueUnitMaterialByType(0);
+	}
+
+	if (SpawnBlueUnitAtLocation(World, DesiredLocation, BlueUnitFacing, FString::Printf(TEXT("部署点%d"), MarkerIndex + 1), MeshForType, MaterialForType, ActiveCountermeasureIndices))
+	{
+		if (BlueMarkerSpawnCounts.IsValidIndex(MarkerIndex))
+		{
+			BlueMarkerSpawnCounts[MarkerIndex] += 1;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("SpawnBlueUnitAtMarker: placed unit type %d at marker %s"), SafeType + 1, *Marker->GetName());
+		RefreshBlueMonitor();
 	}
 }
 
@@ -886,5 +1058,77 @@ void UScenarioMenuSubsystem::RestorePreviousPawn()
 	OverviewPawn.Reset();
 	PreviousPawn.Reset();
 	bHasOverviewHome = false;
+}
+
+bool UScenarioMenuSubsystem::SpawnBlueUnitAtLocation(UWorld* World, const FVector& DesiredLocation, const FRotator& Facing, const FString& MarkerName, UStaticMesh* UnitMesh, UMaterialInterface* UnitMaterial, const TArray<int32>& CountermeasureIndices)
+{
+	if (!World || !UnitMesh)
+	{
+		return false;
+	}
+
+	FVector SpawnLocation = DesiredLocation;
+
+	const FVector TraceStart = SpawnLocation + FVector(0.f, 0.f, 6000.f);
+	const FVector TraceEnd = SpawnLocation - FVector(0.f, 0.f, 12000.f);
+	FHitResult Hit;
+	FCollisionQueryParams Params(NAME_None, false);
+	Params.bTraceComplex = true;
+	const bool bHit = World->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, Params);
+	if (bHit && Hit.bBlockingHit)
+	{
+		SpawnLocation = Hit.ImpactPoint + FVector(0.f, 0.f, 30.f);
+	}
+	else if (UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(World))
+	{
+		FNavLocation ProjectedNav;
+		if (NavSys->ProjectPointToNavigation(SpawnLocation, ProjectedNav, FVector(400.f, 400.f, 1200.f)))
+		{
+			SpawnLocation = ProjectedNav.Location + FVector(0.f, 0.f, 30.f);
+		}
+	}
+
+	const FString MarkerLabel = MarkerName.IsEmpty() ? TEXT("ManualLocation") : MarkerName;
+	UE_LOG(LogTemp, Log, TEXT("Placing unit near %s -> %s"), *MarkerLabel, *SpawnLocation.ToString());
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	AStaticMeshActor* Spawned = World->SpawnActor<AStaticMeshActor>(SpawnLocation, Facing, SpawnParams);
+	if (!Spawned)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to spawn blue unit at %s"), *SpawnLocation.ToString());
+		return false;
+	}
+
+	if (UStaticMeshComponent* MeshComp = Spawned->GetStaticMeshComponent())
+	{
+		MeshComp->SetMobility(EComponentMobility::Movable);
+		MeshComp->SetStaticMesh(UnitMesh);
+		MeshComp->SetRelativeScale3D(FVector(1.0f));
+		MeshComp->SetCollisionProfileName(TEXT("BlockAll"));
+		MeshComp->SetVisibility(true, true);
+		MeshComp->SetHiddenInGame(false);
+		if (UnitMaterial)
+		{
+			MeshComp->SetMaterial(0, UnitMaterial);
+		}
+	}
+
+	Spawned->Tags.AddUnique(FName(TEXT("BlueUnit")));
+	for (int32 Countermeasure : CountermeasureIndices)
+	{
+		switch (Countermeasure)
+		{
+		case 0: Spawned->Tags.AddUnique(FName(TEXT("Blue_ECM"))); break;
+		case 1: Spawned->Tags.AddUnique(FName(TEXT("Blue_CommJamming"))); break;
+		case 2: Spawned->Tags.AddUnique(FName(TEXT("Blue_TargetMobility"))); break;
+		default: break;
+		}
+	}
+
+	ActiveBlueUnits.Add(Spawned);
+	UE_LOG(LogTemp, Log, TEXT("Blue unit spawned at %s"), *SpawnLocation.ToString());
+	return true;
 }
 

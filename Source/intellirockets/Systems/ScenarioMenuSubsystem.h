@@ -37,12 +37,18 @@ private:
 	UClass* ResolveBlueUnitClass() const;
 	class UStaticMesh* ResolveBlueUnitMesh() const;
 	class UMaterialInterface* ResolveBlueUnitMaterial() const;
+	class UStaticMesh* ResolveBlueUnitMeshByType(int32 TypeIndex) const;
+	class UMaterialInterface* ResolveBlueUnitMaterialByType(int32 TypeIndex) const;
 	void ShowBlueMonitor(UWorld* World);
 	void HideBlueMonitor();
 	void FocusCameraOnUnit(int32 Index);
+	void FocusCameraOnMarker(int32 Index);
+	void SpawnBlueUnitAtMarker(int32 MarkerIndex, int32 UnitType);
 	void ReturnCameraToInitial();
 	void EnsureOverviewPawn(UWorld* World);
 	void RestorePreviousPawn();
+	void RefreshBlueMonitor();
+	bool SpawnBlueUnitAtLocation(UWorld* World, const FVector& DesiredLocation, const FRotator& Facing, const FString& MarkerName, class UStaticMesh* UnitMesh, class UMaterialInterface* UnitMaterial, const TArray<int32>& CountermeasureIndices);
 
 public:
 	FOnScenarioTestRequested OnScenarioTestRequested;
@@ -60,6 +66,7 @@ private:
 	TArray<TWeakObjectPtr<AActor>> ActiveBlueUnits;
 	TSharedPtr<SBlueUnitMonitor> BlueMonitorWidget;
 	TSharedPtr<SWidget> BlueMonitorRoot;
+	bool bUsingCustomDeployment = false;
 	bool bHasInitialCameraTransform = false;
 	FVector InitialCameraLocation = FVector::ZeroVector;
 	FRotator InitialCameraRotation = FRotator::ZeroRotator;
@@ -68,6 +75,14 @@ private:
 	FRotator OverviewHomeRotation = FRotator::ZeroRotator;
 	TWeakObjectPtr<class ASpectatorPawn> OverviewPawn;
 	TWeakObjectPtr<class APawn> PreviousPawn;
+	TArray<TWeakObjectPtr<AActor>> BlueDeployMarkers;
+	TArray<int32> BlueMarkerSpawnCounts;
+	FRotator BlueUnitFacing = FRotator::ZeroRotator;
+	FVector BlueForward = FVector::ForwardVector;
+	FVector BlueRight = FVector::RightVector;
+	TArray<TWeakObjectPtr<class UStaticMesh>> BlueUnitMeshes;
+	TArray<TWeakObjectPtr<class UMaterialInterface>> BlueUnitMaterials;
+	TArray<int32> ActiveCountermeasureIndices;
 };
 
 
