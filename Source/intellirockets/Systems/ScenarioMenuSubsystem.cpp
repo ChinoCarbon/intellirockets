@@ -26,6 +26,11 @@
 #include "NavigationSystem.h"
 #include "Engine/LevelStreaming.h"
 #include "TimerManager.h"
+#include "Actors/MockMissileActor.h"
+#include "Components/InputComponent.h"
+#include "InputCoreTypes.h"
+#include "Blueprint/UserWidget.h"
+#include "UI/Widgets/MissileOverlayWidget.h"
 
 void UScenarioMenuSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -41,6 +46,15 @@ void UScenarioMenuSubsystem::Deinitialize()
 		PendingWorld->GetTimerManager().ClearTimer(PendingScenarioTimerHandle);
 	}
 	PendingScenarioWorld = nullptr;
+	RemoveInputBindings();
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+		World->GetTimerManager().ClearTimer(MissileCameraTimerHandle);
+	}
+	MissileCameraTarget = nullptr;
+	RemoveMissileOverlay();
+	AutoFireRemaining = 0;
 
 	FWorldDelegates::OnPostWorldInitialization.Remove(WorldHandle);
 	if (GEngine && GEngine->GameViewport && Screen.IsValid())
@@ -631,6 +645,8 @@ RefreshBlueMonitor();
 
 void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
 {
+	StopMissileCameraFollow();
+
 	for (TWeakObjectPtr<AActor>& Ptr : ActiveBlueUnits)
 	{
 		if (AActor* Actor = Ptr.Get())
@@ -642,6 +658,25 @@ void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
 		}
 	}
 	ActiveBlueUnits.Reset();
+	NextTargetCursor = 0;
+
+	for (TWeakObjectPtr<AMockMissileActor>& MissilePtr : ActiveMissiles)
+	{
+		if (AMockMissileActor* Missile = MissilePtr.Get())
+		{
+			if (!Missile->IsPendingKillPending())
+			{
+				Missile->Destroy();
+			}
+		}
+	}
+	ActiveMissiles.Reset();
+	AutoFireRemaining = 0;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+	}
+
 	if (bUsingCustomDeployment)
 	{
 		for (int32& Count : BlueMarkerSpawnCounts)
@@ -651,6 +686,7 @@ void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
 	}
 
 	RefreshBlueMonitor();
+	RebuildViewSequence();
 }
 
 UClass* UScenarioMenuSubsystem::ResolveBlueUnitClass() const
@@ -752,7 +788,9 @@ void UScenarioMenuSubsystem::ShowBlueMonitor(UWorld* World)
 			.OnFocusUnit(SBlueUnitMonitor::FFocusUnit::CreateUObject(this, &UScenarioMenuSubsystem::FocusCameraOnUnit))
 			.OnFocusMarker(SBlueUnitMonitor::FFocusMarker::CreateUObject(this, &UScenarioMenuSubsystem::FocusCameraOnMarker))
 			.OnSpawnAtMarker(SBlueUnitMonitor::FSpawnAtMarker::CreateUObject(this, &UScenarioMenuSubsystem::SpawnBlueUnitAtMarker))
-			.OnReturnCamera(FSimpleDelegate::CreateUObject(this, &UScenarioMenuSubsystem::ReturnCameraToInitial));
+			.OnReturnCamera(FSimpleDelegate::CreateUObject(this, &UScenarioMenuSubsystem::ReturnCameraToInitial))
+			.OnLaunchMissile(SBlueUnitMonitor::FFireOneMissile::CreateUObject(this, &UScenarioMenuSubsystem::LaunchMissileFromUI))
+			.OnAutoFireMissiles(SBlueUnitMonitor::FAutoFireMissiles::CreateUObject(this, &UScenarioMenuSubsystem::FireMultipleMissiles));
 
 		TSharedRef<SWidget> Overlay =
 			SNew(SOverlay)
@@ -769,6 +807,10 @@ void UScenarioMenuSubsystem::ShowBlueMonitor(UWorld* World)
 	}
 
 	RefreshBlueMonitor();
+	if (World)
+	{
+		SetupInputBindings(World);
+	}
 }
 
 void UScenarioMenuSubsystem::HideBlueMonitor()
@@ -779,6 +821,8 @@ void UScenarioMenuSubsystem::HideBlueMonitor()
 	}
 	BlueMonitorRoot.Reset();
 	BlueMonitorWidget.Reset();
+	RemoveInputBindings();
+	StopMissileCameraFollow();
 	RestorePreviousPawn();
 }
 
@@ -788,6 +832,14 @@ void UScenarioMenuSubsystem::RefreshBlueMonitor()
 	{
 		return;
 	}
+
+	CleanupMissiles();
+	ActiveBlueUnits.RemoveAll([](const TWeakObjectPtr<AActor>& Ptr)
+	{
+		return !Ptr.IsValid();
+	});
+
+	RebuildViewSequence();
 
 	if (bUsingCustomDeployment)
 	{
@@ -819,6 +871,8 @@ void UScenarioMenuSubsystem::FocusCameraOnMarker(int32 Index)
 		UE_LOG(LogTemp, Warning, TEXT("FocusCameraOnMarker: marker %d is no longer valid."), Index);
 		return;
 	}
+
+	StopMissileCameraFollow();
 
 	const FVector TargetLocation = Marker->GetActorLocation();
 	FVector ForwardDir = BlueForward;
@@ -858,6 +912,17 @@ void UScenarioMenuSubsystem::FocusCameraOnUnit(int32 Index)
 	if (!Target)
 	{
 		return;
+	}
+
+	StopMissileCameraFollow();
+	for (int32 ViewIdx = 0; ViewIdx < ViewEntries.Num(); ++ViewIdx)
+	{
+		const FViewEntry& Entry = ViewEntries[ViewIdx];
+		if (Entry.Type == FViewEntry::EType::BlueUnit && Entry.Index == Index)
+		{
+			CurrentViewIndex = ViewIdx;
+			break;
+		}
 	}
 
 	const FVector TargetLocation = Target->GetActorLocation();
@@ -994,6 +1059,8 @@ void UScenarioMenuSubsystem::ReturnCameraToInitial()
 			}
 		}
 	}
+	StopMissileCameraFollow();
+	CurrentViewIndex = 0;
 }
 
 void UScenarioMenuSubsystem::EnsureOverviewPawn(UWorld* World)
@@ -1130,5 +1197,799 @@ bool UScenarioMenuSubsystem::SpawnBlueUnitAtLocation(UWorld* World, const FVecto
 	ActiveBlueUnits.Add(Spawned);
 	UE_LOG(LogTemp, Log, TEXT("Blue unit spawned at %s"), *SpawnLocation.ToString());
 	return true;
+}
+
+bool UScenarioMenuSubsystem::FireSingleMissile(bool bFromAutoFire /*= false*/)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	CleanupMissiles();
+	RebuildViewSequence();
+
+	AActor* Target = SelectNextBlueTarget();
+	if (!Target)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("FireSingleMissile: no valid blue unit target available."));
+		return false;
+	}
+
+	AMockMissileActor* Missile = SpawnMissile(World, Target);
+	if (!Missile)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("FireSingleMissile: failed to spawn missile."));
+		return false;
+	}
+
+	if (bFromAutoFire || !MissileCameraTarget.IsValid())
+	{
+		FocusCameraOnMissile(Missile);
+	}
+
+	return true;
+}
+
+void UScenarioMenuSubsystem::FireMultipleMissiles(int32 Count)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const int32 SafeCount = FMath::Clamp(Count, 1, 20);
+	BeginMissileAutoFire(SafeCount);
+}
+
+AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* Target)
+{
+	if (!World || !Target)
+	{
+		return nullptr;
+	}
+
+	UStaticMesh* MissileMesh = ResolveMissileMesh();
+	UMaterialInterface* MissileMaterial = ResolveMissileMaterial();
+
+	FRotator Facing;
+	const FVector StartLocation = GetPlayerStartLocation(Facing);
+	FVector SpawnLocation = StartLocation + Facing.Vector() * 120.f + FVector(0.f, 0.f, 120.f);
+	const FVector TargetDirection = (Target->GetActorLocation() - SpawnLocation).GetSafeNormal();
+	const FRotator LaunchRotation = TargetDirection.IsNearlyZero() ? Facing : TargetDirection.Rotation();
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	AMockMissileActor* Missile = World->SpawnActor<AMockMissileActor>(SpawnLocation, LaunchRotation, Params);
+	if (!Missile)
+	{
+		return nullptr;
+	}
+
+	if (MissileMesh || MissileMaterial)
+	{
+		Missile->SetupAppearance(MissileMesh, MissileMaterial, FLinearColor(1.f, 0.1f, 0.1f));
+	}
+
+	Missile->InitializeMissile(Target, 9000.f, 45.f);
+	Missile->OnImpact.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileImpact);
+	Missile->OnExpired.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileExpired);
+
+	ActiveMissiles.Add(Missile);
+
+	UE_LOG(LogTemp, Log, TEXT("SpawnMissile: launched missile toward %s from %s"), *Target->GetName(), *SpawnLocation.ToString());
+	RebuildViewSequence();
+	return Missile;
+}
+
+AActor* UScenarioMenuSubsystem::SelectNextBlueTarget()
+{
+	ActiveBlueUnits.RemoveAll([](const TWeakObjectPtr<AActor>& Ptr) { return !Ptr.IsValid(); });
+
+	const int32 UnitCount = ActiveBlueUnits.Num();
+	if (UnitCount == 0)
+	{
+		return nullptr;
+	}
+
+	NextTargetCursor = NextTargetCursor % UnitCount;
+
+	for (int32 Attempt = 0; Attempt < UnitCount; ++Attempt)
+	{
+		const int32 Index = (NextTargetCursor + Attempt) % UnitCount;
+		if (AActor* Candidate = ActiveBlueUnits[Index].Get())
+		{
+			NextTargetCursor = (Index + 1) % UnitCount;
+			return Candidate;
+		}
+	}
+
+	return nullptr;
+}
+
+void UScenarioMenuSubsystem::HandleMissileImpact(AMockMissileActor* Missile, AActor* HitActor)
+{
+	const FVector ExplosionLocation = Missile && !Missile->IsPendingKillPending() ? Missile->GetActorLocation()
+		: (HitActor ? HitActor->GetActorLocation() : FVector::ZeroVector);
+
+	const float ExplosionRadius = 900.f;
+	int32 DestroyedCount = 0;
+
+	if (HitActor && !HitActor->IsPendingKillPending() && ActiveBlueUnits.Contains(HitActor))
+	{
+		UE_LOG(LogTemp, Log, TEXT("HandleMissileImpact: missile direct-hit %s"), *HitActor->GetName());
+		HitActor->Destroy();
+		++DestroyedCount;
+	}
+
+	TArray<AActor*> UnitsToRemove;
+
+	for (TWeakObjectPtr<AActor>& UnitPtr : ActiveBlueUnits)
+	{
+		if (!UnitPtr.IsValid())
+		{
+			continue;
+		}
+
+		AActor* Unit = UnitPtr.Get();
+		if (Unit == HitActor || Unit->IsPendingKillPending())
+		{
+			continue;
+		}
+
+		const float DistanceSq = FVector::DistSquared(ExplosionLocation, Unit->GetActorLocation());
+		if (DistanceSq <= FMath::Square(ExplosionRadius))
+		{
+			UE_LOG(LogTemp, Log, TEXT("HandleMissileImpact: AoE destroyed %s (distance %.1f)"), *Unit->GetName(), FMath::Sqrt(DistanceSq));
+			Unit->Destroy();
+			++DestroyedCount;
+			UnitsToRemove.Add(Unit);
+		}
+	}
+
+	ActiveBlueUnits.RemoveAll([&UnitsToRemove](const TWeakObjectPtr<AActor>& Ptr)
+	{
+		if (!Ptr.IsValid())
+		{
+			return true;
+		}
+
+		if (Ptr->IsPendingKillPending())
+		{
+			return true;
+		}
+
+		return UnitsToRemove.Contains(Ptr.Get());
+	});
+
+	if (DestroyedCount == 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("HandleMissileImpact: missile detonated without destroying any blue unit. HitActor=%s"), HitActor ? *HitActor->GetName() : TEXT("None"));
+	}
+
+	if (ActiveBlueUnits.Num() > 0)
+	{
+		NextTargetCursor = NextTargetCursor % ActiveBlueUnits.Num();
+	}
+	else
+	{
+		NextTargetCursor = 0;
+	}
+
+	const bool bWasCameraTarget = MissileCameraTarget.Get() == Missile;
+
+	ActiveMissiles.RemoveAll([Missile](const TWeakObjectPtr<AMockMissileActor>& Ptr)
+	{
+		return !Ptr.IsValid() || Ptr.Get() == Missile;
+	});
+
+	if (bWasCameraTarget)
+	{
+		StopMissileCameraFollow();
+		if (ActiveMissiles.Num() > 0)
+		{
+			FocusCameraOnMissile(ActiveMissiles.Last().Get());
+		}
+		else
+		{
+			FocusInitialView();
+		}
+	}
+
+	RebuildViewSequence();
+	RefreshBlueMonitor();
+}
+
+void UScenarioMenuSubsystem::HandleMissileExpired(AMockMissileActor* Missile)
+{
+	const bool bWasCameraTarget = MissileCameraTarget.Get() == Missile;
+
+	ActiveMissiles.RemoveAll([Missile](const TWeakObjectPtr<AMockMissileActor>& Ptr)
+	{
+		return !Ptr.IsValid() || Ptr.Get() == Missile;
+	});
+
+	if (ActiveBlueUnits.Num() > 0)
+	{
+		NextTargetCursor = NextTargetCursor % ActiveBlueUnits.Num();
+	}
+	else
+	{
+		NextTargetCursor = 0;
+	}
+
+	if (bWasCameraTarget)
+	{
+		StopMissileCameraFollow();
+		if (ActiveMissiles.Num() > 0)
+		{
+			FocusCameraOnMissile(ActiveMissiles.Last().Get());
+		}
+		else
+		{
+			FocusInitialView();
+		}
+	}
+
+	RebuildViewSequence();
+}
+
+void UScenarioMenuSubsystem::CleanupMissiles()
+{
+	ActiveMissiles.RemoveAll([](const TWeakObjectPtr<AMockMissileActor>& Ptr)
+	{
+		return !Ptr.IsValid();
+	});
+}
+
+UStaticMesh* UScenarioMenuSubsystem::ResolveMissileMesh() const
+{
+	if (!CachedMissileMesh.IsValid())
+	{
+		FSoftObjectPath MeshPath(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+		if (UStaticMesh* Mesh = Cast<UStaticMesh>(MeshPath.TryLoad()))
+		{
+			CachedMissileMesh = Mesh;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ResolveMissileMesh: failed to load basic sphere mesh."));
+			return nullptr;
+		}
+	}
+
+	return CachedMissileMesh.Get();
+}
+
+UMaterialInterface* UScenarioMenuSubsystem::ResolveMissileMaterial() const
+{
+	if (!CachedMissileMaterial.IsValid())
+	{
+		FSoftObjectPath MaterialPath(TEXT("/Game/StarterContent/Materials/M_Glow.M_Glow"));
+		if (UMaterialInterface* Material = Cast<UMaterialInterface>(MaterialPath.TryLoad()))
+		{
+			CachedMissileMaterial = Material;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ResolveMissileMaterial: failed to load BasicShapeMaterial."));
+			return nullptr;
+		}
+	}
+
+	return CachedMissileMaterial.Get();
+}
+
+FVector UScenarioMenuSubsystem::GetPlayerStartLocation(FRotator& OutRotation) const
+{
+	OutRotation = FRotator::ZeroRotator;
+
+	if (UWorld* World = GetWorld())
+	{
+		if (APlayerStart* PlayerStart = Cast<APlayerStart>(UGameplayStatics::GetActorOfClass(World, APlayerStart::StaticClass())))
+		{
+			OutRotation = PlayerStart->GetActorRotation();
+			return PlayerStart->GetActorLocation();
+		}
+
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			if (APawn* Pawn = PC->GetPawn())
+			{
+				OutRotation = Pawn->GetActorRotation();
+				return Pawn->GetActorLocation();
+			}
+		}
+	}
+
+	return FVector::ZeroVector;
+}
+
+void UScenarioMenuSubsystem::BeginMissileAutoFire(int32 Count)
+{
+	if (Count <= 0)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+		AutoFireRemaining = Count;
+		HandleAutoFireTick();
+	}
+}
+
+void UScenarioMenuSubsystem::HandleAutoFireTick()
+{
+	if (AutoFireRemaining <= 0)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+		}
+		return;
+	}
+
+	if (!FireSingleMissile(true))
+	{
+		AutoFireRemaining = 0;
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+		}
+		return;
+	}
+
+	AutoFireRemaining = FMath::Max(0, AutoFireRemaining - 1);
+
+	if (AutoFireRemaining > 0)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(AutoFireTimerHandle, this, &UScenarioMenuSubsystem::HandleAutoFireTick, 0.6f, false);
+		}
+	}
+}
+
+void UScenarioMenuSubsystem::SetupInputBindings(UWorld* World)
+{
+	if (!World || bInputComponentPushed)
+	{
+		return;
+	}
+
+	if (APlayerController* PC = World->GetFirstPlayerController())
+	{
+		if (!MissileInputComponent)
+		{
+			MissileInputComponent = NewObject<UInputComponent>(PC, TEXT("MissileInputComponent"));
+			MissileInputComponent->RegisterComponent();
+			MissileInputComponent->Priority = 10;
+			MissileInputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputFireMissile);
+			MissileInputComponent->BindKey(EKeys::Q, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleBackward);
+			MissileInputComponent->BindKey(EKeys::E, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleForward);
+		}
+
+		if (MissileInputComponent)
+		{
+			PC->PushInputComponent(MissileInputComponent);
+			bInputComponentPushed = true;
+		}
+	}
+}
+
+void UScenarioMenuSubsystem::RemoveInputBindings()
+{
+	if (!bInputComponentPushed)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			if (MissileInputComponent)
+			{
+				PC->PopInputComponent(MissileInputComponent);
+			}
+		}
+	}
+
+	bInputComponentPushed = false;
+}
+
+void UScenarioMenuSubsystem::LaunchMissileFromUI()
+{
+	FireSingleMissile();
+}
+
+void UScenarioMenuSubsystem::OnInputFireMissile()
+{
+	FireSingleMissile();
+}
+
+void UScenarioMenuSubsystem::OnInputCycleForward()
+{
+	CycleViewForward();
+}
+
+void UScenarioMenuSubsystem::OnInputCycleBackward()
+{
+	CycleViewBackward();
+}
+
+void UScenarioMenuSubsystem::CycleViewForward()
+{
+	RebuildViewSequence();
+	if (ViewEntries.Num() == 0)
+	{
+		return;
+	}
+
+	CurrentViewIndex = (CurrentViewIndex + 1) % ViewEntries.Num();
+	FocusViewAtIndex(CurrentViewIndex);
+}
+
+void UScenarioMenuSubsystem::CycleViewBackward()
+{
+	RebuildViewSequence();
+	if (ViewEntries.Num() == 0)
+	{
+		return;
+	}
+
+	CurrentViewIndex = (CurrentViewIndex - 1 + ViewEntries.Num()) % ViewEntries.Num();
+	FocusViewAtIndex(CurrentViewIndex);
+}
+
+void UScenarioMenuSubsystem::FocusInitialView()
+{
+	ReturnCameraToInitial();
+	CurrentViewIndex = 0;
+}
+
+void UScenarioMenuSubsystem::FocusViewAtIndex(int32 ViewIndex)
+{
+	if (!ViewEntries.IsValidIndex(ViewIndex))
+	{
+		FocusInitialView();
+		return;
+	}
+
+	CurrentViewIndex = ViewIndex;
+	const FViewEntry& Entry = ViewEntries[ViewIndex];
+
+	switch (Entry.Type)
+	{
+	case FViewEntry::EType::Initial:
+		FocusInitialView();
+		break;
+	case FViewEntry::EType::BlueUnit:
+		if (ActiveBlueUnits.IsValidIndex(Entry.Index) && ActiveBlueUnits[Entry.Index].IsValid())
+		{
+			FocusCameraOnUnit(Entry.Index);
+		}
+		else
+		{
+			FocusInitialView();
+		}
+		break;
+	case FViewEntry::EType::Missile:
+		if (ActiveMissiles.IsValidIndex(Entry.Index) && ActiveMissiles[Entry.Index].IsValid())
+		{
+			FocusCameraOnMissile(ActiveMissiles[Entry.Index].Get());
+		}
+		else
+		{
+			FocusInitialView();
+		}
+		break;
+	default:
+		FocusInitialView();
+		break;
+	}
+}
+
+void UScenarioMenuSubsystem::FocusCameraOnMissile(AMockMissileActor* Missile)
+{
+	if (!Missile)
+	{
+		FocusInitialView();
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	StopMissileCameraFollow();
+	MissileCameraTarget = Missile;
+	for (int32 ViewIdx = 0; ViewIdx < ViewEntries.Num(); ++ViewIdx)
+	{
+		const FViewEntry& Entry = ViewEntries[ViewIdx];
+		if (Entry.Type == FViewEntry::EType::Missile && ActiveMissiles.IsValidIndex(Entry.Index) && ActiveMissiles[Entry.Index].Get() == Missile)
+		{
+			CurrentViewIndex = ViewIdx;
+			break;
+		}
+	}
+	EnsureOverviewPawn(World);
+	UpdateMissileCamera();
+	World->GetTimerManager().SetTimer(MissileCameraTimerHandle, this, &UScenarioMenuSubsystem::UpdateMissileCamera, 0.016f, true);
+	EnsureMissileOverlay();
+	UpdateMissileOverlay();
+}
+
+void UScenarioMenuSubsystem::StopMissileCameraFollow()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(MissileCameraTimerHandle);
+	}
+	MissileCameraTarget = nullptr;
+	RemoveMissileOverlay();
+}
+
+void UScenarioMenuSubsystem::UpdateMissileCamera()
+{
+	if (!MissileCameraTarget.IsValid())
+	{
+		StopMissileCameraFollow();
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		StopMissileCameraFollow();
+		return;
+	}
+
+	AMockMissileActor* Missile = MissileCameraTarget.Get();
+	if (!Missile)
+	{
+		StopMissileCameraFollow();
+		return;
+	}
+
+	EnsureOverviewPawn(World);
+	if (ASpectatorPawn* Pawn = OverviewPawn.Get())
+	{
+		const FVector MissileLocation = Missile->GetActorLocation();
+		FVector Forward = Missile->GetActorForwardVector();
+		if (!Forward.Normalize())
+		{
+			Forward = FVector::ForwardVector;
+		}
+
+		const FVector CameraLocation = MissileLocation - Forward * 400.f + FVector(0.f, 0.f, 150.f);
+		const FRotator CameraRotation = (MissileLocation - CameraLocation).Rotation();
+
+		Pawn->SetActorLocation(CameraLocation);
+		Pawn->SetActorRotation(CameraRotation);
+
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			PC->SetControlRotation(CameraRotation);
+		}
+	}
+	else
+	{
+		StopMissileCameraFollow();
+	}
+
+	UpdateMissileOverlay();
+}
+
+void UScenarioMenuSubsystem::RebuildViewSequence()
+{
+	ViewEntries.Reset();
+
+	FViewEntry InitialEntry;
+	InitialEntry.Type = FViewEntry::EType::Initial;
+	InitialEntry.Index = INDEX_NONE;
+	ViewEntries.Add(InitialEntry);
+
+	ActiveBlueUnits.RemoveAll([](const TWeakObjectPtr<AActor>& Ptr)
+	{
+		return !Ptr.IsValid();
+	});
+
+	for (int32 UnitIndex = 0; UnitIndex < ActiveBlueUnits.Num(); ++UnitIndex)
+	{
+		if (ActiveBlueUnits[UnitIndex].IsValid())
+		{
+			FViewEntry Entry;
+			Entry.Type = FViewEntry::EType::BlueUnit;
+			Entry.Index = UnitIndex;
+			ViewEntries.Add(Entry);
+		}
+	}
+
+	ActiveMissiles.RemoveAll([](const TWeakObjectPtr<AMockMissileActor>& Ptr)
+	{
+		return !Ptr.IsValid();
+	});
+
+	for (int32 MissileIndex = 0; MissileIndex < ActiveMissiles.Num(); ++MissileIndex)
+	{
+		if (ActiveMissiles[MissileIndex].IsValid())
+		{
+			FViewEntry Entry;
+			Entry.Type = FViewEntry::EType::Missile;
+			Entry.Index = MissileIndex;
+			ViewEntries.Add(Entry);
+		}
+	}
+
+	if (!ViewEntries.IsValidIndex(CurrentViewIndex))
+	{
+		CurrentViewIndex = 0;
+	}
+}
+
+void UScenarioMenuSubsystem::EnsureMissileOverlay()
+{
+	if (MissileOverlayWidget.IsValid())
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	if (APlayerController* PC = World->GetFirstPlayerController())
+	{
+		if (UMissileOverlayWidget* Overlay = CreateWidget<UMissileOverlayWidget>(PC, UMissileOverlayWidget::StaticClass()))
+		{
+			Overlay->AddToViewport(450);
+			MissileOverlayWidget = Overlay;
+		}
+	}
+}
+
+void UScenarioMenuSubsystem::RemoveMissileOverlay()
+{
+	if (MissileOverlayWidget.IsValid())
+	{
+		MissileOverlayWidget->RemoveFromParent();
+		MissileOverlayWidget = nullptr;
+	}
+}
+
+void UScenarioMenuSubsystem::UpdateMissileOverlay()
+{
+	if (!MissileOverlayWidget.IsValid())
+	{
+		return;
+	}
+
+	if (!MissileCameraTarget.IsValid())
+	{
+		MissileOverlayWidget->SetTargets({});
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		MissileOverlayWidget->SetTargets({});
+		return;
+	}
+
+	APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC)
+	{
+		MissileOverlayWidget->SetTargets({});
+		return;
+	}
+
+	AMockMissileActor* Missile = MissileCameraTarget.Get();
+	if (!Missile)
+	{
+		MissileOverlayWidget->SetTargets({});
+		return;
+	}
+
+	const FVector CameraLocation = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraLocation() : Missile->GetActorLocation();
+	const FVector CameraForward = PC->PlayerCameraManager ? PC->PlayerCameraManager->GetCameraRotation().Vector() : Missile->GetActorForwardVector();
+
+	FVector NormalizedForward = CameraForward;
+	if (!NormalizedForward.Normalize())
+	{
+		NormalizedForward = FVector::ForwardVector;
+	}
+
+	const FVector MissileLocation = Missile->GetActorLocation();
+	const float CosHalfAngle = FMath::Cos(FMath::DegreesToRadians(65.f));
+	const float MaxDistance = 50000.f;
+
+	TArray<FMissileOverlayTarget> OverlayTargets;
+
+	for (const TWeakObjectPtr<AActor>& TargetPtr : ActiveBlueUnits)
+	{
+		if (!TargetPtr.IsValid())
+		{
+			continue;
+		}
+
+		FVector BoundsOrigin;
+		FVector BoundsExtent;
+		TargetPtr->GetActorBounds(true, BoundsOrigin, BoundsExtent);
+
+		const FVector ToTarget = BoundsOrigin - CameraLocation;
+		const float Distance = ToTarget.Size();
+		if (Distance <= KINDA_SMALL_NUMBER || Distance > MaxDistance)
+		{
+			continue;
+		}
+
+		const FVector Direction = ToTarget / Distance;
+		if (FVector::DotProduct(Direction, NormalizedForward) < CosHalfAngle)
+		{
+			continue;
+		}
+
+		const FVector CornerOffsets[8] =
+		{
+			FVector( BoundsExtent.X,  BoundsExtent.Y,  BoundsExtent.Z),
+			FVector( BoundsExtent.X,  BoundsExtent.Y, -BoundsExtent.Z),
+			FVector( BoundsExtent.X, -BoundsExtent.Y,  BoundsExtent.Z),
+			FVector( BoundsExtent.X, -BoundsExtent.Y, -BoundsExtent.Z),
+			FVector(-BoundsExtent.X,  BoundsExtent.Y,  BoundsExtent.Z),
+			FVector(-BoundsExtent.X,  BoundsExtent.Y, -BoundsExtent.Z),
+			FVector(-BoundsExtent.X, -BoundsExtent.Y,  BoundsExtent.Z),
+			FVector(-BoundsExtent.X, -BoundsExtent.Y, -BoundsExtent.Z),
+		};
+
+		FBox2D ScreenBox(ForceInit);
+		bool bAnyProjected = false;
+
+		for (const FVector& Offset : CornerOffsets)
+		{
+			const FVector WorldPoint = BoundsOrigin + Offset;
+			const FVector FromCamera = WorldPoint - CameraLocation;
+			if (FVector::DotProduct(FromCamera.GetSafeNormal(), NormalizedForward) < 0.05f)
+			{
+				continue;
+			}
+
+			FVector2D ScreenPos;
+			if (PC->ProjectWorldLocationToScreen(WorldPoint, ScreenPos, false))
+			{
+				bAnyProjected = true;
+				ScreenBox += ScreenPos;
+			}
+		}
+
+		if (!bAnyProjected || !ScreenBox.bIsValid)
+		{
+			continue;
+		}
+
+		const FVector2D BoxSize = ScreenBox.GetSize();
+		if (BoxSize.GetMin() < 4.f)
+		{
+			continue;
+		}
+
+		FMissileOverlayTarget OverlayEntry;
+		OverlayEntry.ScreenPosition = ScreenBox.GetCenter();
+		OverlayEntry.BoxHalfSize = BoxSize * 0.5f;
+		OverlayEntry.Color = FLinearColor(0.f, 0.85f, 1.f, 0.9f);
+		OverlayTargets.Add(OverlayEntry);
+	}
+
+	MissileOverlayWidget->SetTargets(OverlayTargets);
 }
 

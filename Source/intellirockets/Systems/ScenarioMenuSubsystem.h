@@ -7,6 +7,9 @@
 
 class SScenarioScreen;
 class SBlueUnitMonitor;
+class AMockMissileActor;
+class UInputComponent;
+class UMissileOverlayWidget;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnScenarioTestRequested, const FScenarioTestConfig&);
 
@@ -49,6 +52,35 @@ private:
 	void RestorePreviousPawn();
 	void RefreshBlueMonitor();
 	bool SpawnBlueUnitAtLocation(UWorld* World, const FVector& DesiredLocation, const FRotator& Facing, const FString& MarkerName, class UStaticMesh* UnitMesh, class UMaterialInterface* UnitMaterial, const TArray<int32>& CountermeasureIndices);
+	bool FireSingleMissile(bool bFromAutoFire = false);
+	void FireMultipleMissiles(int32 Count);
+	AMockMissileActor* SpawnMissile(UWorld* World, AActor* Target);
+	AActor* SelectNextBlueTarget();
+	void HandleMissileImpact(AMockMissileActor* Missile, AActor* HitActor);
+	void HandleMissileExpired(AMockMissileActor* Missile);
+	void CleanupMissiles();
+	class UStaticMesh* ResolveMissileMesh() const;
+	class UMaterialInterface* ResolveMissileMaterial() const;
+	FVector GetPlayerStartLocation(FRotator& OutRotation) const;
+	void BeginMissileAutoFire(int32 Count);
+	void HandleAutoFireTick();
+	void SetupInputBindings(UWorld* World);
+	void RemoveInputBindings();
+	void LaunchMissileFromUI();
+	void OnInputFireMissile();
+	void OnInputCycleForward();
+	void OnInputCycleBackward();
+	void CycleViewForward();
+	void CycleViewBackward();
+	void FocusInitialView();
+	void FocusViewAtIndex(int32 ViewIndex);
+	void FocusCameraOnMissile(AMockMissileActor* Missile);
+	void StopMissileCameraFollow();
+	void UpdateMissileCamera();
+	void RebuildViewSequence();
+	void EnsureMissileOverlay();
+	void RemoveMissileOverlay();
+	void UpdateMissileOverlay();
 
 public:
 	FOnScenarioTestRequested OnScenarioTestRequested;
@@ -83,6 +115,33 @@ private:
 	TArray<TWeakObjectPtr<class UStaticMesh>> BlueUnitMeshes;
 	TArray<TWeakObjectPtr<class UMaterialInterface>> BlueUnitMaterials;
 	TArray<int32> ActiveCountermeasureIndices;
+	TArray<TWeakObjectPtr<AMockMissileActor>> ActiveMissiles;
+	mutable TWeakObjectPtr<class UStaticMesh> CachedMissileMesh;
+	mutable TWeakObjectPtr<class UMaterialInterface> CachedMissileMaterial;
+	int32 NextTargetCursor = 0;
+	int32 AutoFireRemaining = 0;
+	FTimerHandle AutoFireTimerHandle;
+	UInputComponent* MissileInputComponent = nullptr;
+	bool bInputComponentPushed = false;
+
+	struct FViewEntry
+	{
+		enum class EType : uint8
+		{
+			Initial,
+			BlueUnit,
+			Missile
+		};
+
+		EType Type = EType::Initial;
+		int32 Index = INDEX_NONE;
+	};
+
+	TArray<FViewEntry> ViewEntries;
+	int32 CurrentViewIndex = 0;
+	TWeakObjectPtr<AMockMissileActor> MissileCameraTarget;
+	FTimerHandle MissileCameraTimerHandle;
+	TWeakObjectPtr<UMissileOverlayWidget> MissileOverlayWidget;
 };
 
 

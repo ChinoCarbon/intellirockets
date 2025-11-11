@@ -7,6 +7,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SSpinBox.h"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SBlueUnitMonitor::Construct(const FArguments& InArgs)
@@ -16,6 +17,8 @@ void SBlueUnitMonitor::Construct(const FArguments& InArgs)
 	FocusMarkerDelegate = InArgs._OnFocusMarker;
 	SpawnDelegate = InArgs._OnSpawnAtMarker;
 	ReturnDelegate = InArgs._OnReturnCamera;
+	LaunchDelegate = InArgs._OnLaunchMissile;
+	AutoFireDelegate = InArgs._OnAutoFireMissiles;
 	bCollapsed = false;
 
 	TSharedRef<SScrollBox> ScrollBox =
@@ -56,6 +59,42 @@ void SBlueUnitMonitor::Construct(const FArguments& InArgs)
 			+ SVerticalBox::Slot().FillHeight(1.f)
 			[
 				SAssignNew(BodyContainer, SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, 6.f, 0.f).VAlign(VAlign_Center)
+					[
+						SNew(SButton)
+						.ContentPadding(FMargin(8.f, 4.f))
+						.OnClicked(this, &SBlueUnitMonitor::HandleFireOneClicked)
+						[
+							SNew(STextBlock)
+							.Text(FText::FromString(TEXT("发射导弹")))
+							.ColorAndOpacity(FLinearColor::White)
+						]
+					]
+					+ SHorizontalBox::Slot().AutoWidth().Padding(0.f, 0.f, 6.f, 0.f).VAlign(VAlign_Center)
+					[
+						SAssignNew(AutoFireSpinBox, SSpinBox<int32>)
+						.MinValue(1)
+						.MaxValue(20)
+						.Delta(1)
+						.Value(this, &SBlueUnitMonitor::GetAutoFireCount)
+						.OnValueChanged(this, &SBlueUnitMonitor::SetAutoFireCount)
+						.ToolTipText(FText::FromString(TEXT("自动发射导弹数量")))
+					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+					[
+						SNew(SButton)
+						.ContentPadding(FMargin(8.f, 4.f))
+						.OnClicked(this, &SBlueUnitMonitor::HandleAutoFireClicked)
+						[
+							SNew(STextBlock)
+							.Text(FText::FromString(TEXT("自动发射")))
+							.ColorAndOpacity(FLinearColor::White)
+						]
+					]
+				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f)
 				[
 					SNew(SButton)
@@ -345,5 +384,27 @@ void SBlueUnitMonitor::UpdateCollapseState()
 	{
 		CollapseLabel->SetText(bCollapsed ? FText::FromString(TEXT("展开")) : FText::FromString(TEXT("收起")));
 	}
+}
+
+FReply SBlueUnitMonitor::HandleFireOneClicked()
+{
+	if (LaunchDelegate.IsBound())
+	{
+		LaunchDelegate.Execute();
+	}
+	return FReply::Handled();
+}
+
+FReply SBlueUnitMonitor::HandleAutoFireClicked()
+{
+	const int32 DesiredCount = AutoFireSpinBox.IsValid() ? AutoFireSpinBox->GetValue() : AutoFireCount;
+	const int32 SafeCount = FMath::Clamp(DesiredCount, 1, 20);
+
+	if (AutoFireDelegate.IsBound())
+	{
+		AutoFireDelegate.Execute(SafeCount);
+	}
+
+	return FReply::Handled();
 }
 
