@@ -3,6 +3,10 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SImage;
+struct FSlateBrush;
+class UTexture2D;
+
 /**
  * 测评环境搭建界面：左侧地图预览，右侧环境选择器
  */
@@ -50,7 +54,7 @@ private:
 	void Rebuild();
 
 private:
-	int32 SelectedWeatherIndex = 0;  // 0: 晴天, 1: 雨天, 2: 雾天
+	int32 SelectedWeatherIndex = 0;  // 0: 晴天, 1: 海杂波, 2: 气动热效应, 3: 雾天
 	int32 SelectedTimeIndex = 0;    // 0: 白天, 1: 夜晚
 	int32 SelectedMapIndex = 0;     // 0: 沙漠, 1: 森林, 2: 雪地, 3: 海边
 	int32 SelectedDensityIndex = 1; // 0: 密集, 1: 正常, 2: 稀疏
@@ -58,5 +62,8 @@ private:
 	int32 SelectedPresetIndex = -1; // -1: 无预设，1..5 为预设编号
 	bool bEnableBlueCustomDeployment = false; // 蓝方自定义部署是否启用
 
-	TSharedPtr<STextBlock> MapPreviewText;  // 地图预览文本（用于实时更新）
+	TSharedPtr<SImage> MapPreviewImage;
+	TSharedPtr<STextBlock> MapPreviewText;
+	TSharedPtr<FSlateBrush> MapPreviewBrush;
+	TWeakObjectPtr<UTexture2D> CachedPreviewTexture;
 };

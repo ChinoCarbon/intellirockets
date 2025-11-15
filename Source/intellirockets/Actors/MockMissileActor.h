@@ -7,6 +7,8 @@
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UPointLightComponent;
+class USceneComponent;
+class USphereComponent;
 
 /**
  * 简易导弹占位 Actor：使用静态网格表示，并通过 Tick 追踪目标。
@@ -48,8 +50,14 @@ private:
 	void UpdateBallistic(float DeltaSeconds);
 	void HandleLifetime(float DeltaSeconds);
 	void HandleImpact(AActor* HitActor);
+	void UpdateTrail();
 
 private:
+	UPROPERTY()
+	USceneComponent* RootSceneComponent;
+	UPROPERTY()
+	USphereComponent* CollisionComponent;
+
 	UPROPERTY()
 	UStaticMeshComponent* MeshComponent;
 
@@ -58,8 +66,8 @@ private:
 
 	TWeakObjectPtr<AActor> TargetActor;
 
-	float Speed = 4000.f;
-	float AscentSpeed = 4000.f;
+	float Speed = 3000.f;
+	float AscentSpeed = 2000.f;
 	float AscentHeight = 2000.f;
 	float MaxLifetime = 30.f;
 	float ElapsedLifetime = 0.f;
@@ -74,6 +82,16 @@ private:
 	FVector Velocity = FVector::ZeroVector;
 	FVector StartLocation = FVector::ZeroVector;
 	FVector CachedTargetLocation = FVector::ZeroVector;
+	FVector LastTrailLocation = FVector::ZeroVector;
+	bool bTrailActive = false;
+
+	float TrailPointSpacing = 120.f;
+	float TrailLifetime = 20.f;
+	float TrailThickness = 8.f;
+	float MinAscentHeight = 2400.f;
+	float MaxAscentHeight = 5200.f;
+	float MinLaunchSpeed = 1500.f;
+	float MaxLaunchSpeed = 6000.f;
 
 	void UpdateAscent(float DeltaSeconds);
 	void BeginHoming();

@@ -26,7 +26,10 @@ public class intellirockets : ModuleRules
 			}
 		);
 
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
+		PrivateDependencyModuleNames.AddRange(new string[] 
+		{ 
+			"DesktopPlatform"
+		});
 
 		PublicIncludePaths.AddRange(
 			new string[] {

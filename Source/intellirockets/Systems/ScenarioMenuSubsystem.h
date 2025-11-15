@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "Systems/ScenarioTestMetrics.h"
 #include "UI/SScenarioScreen.h"
 #include "ScenarioMenuSubsystem.generated.h"
 
@@ -10,6 +11,7 @@ class SBlueUnitMonitor;
 class AMockMissileActor;
 class UInputComponent;
 class UMissileOverlayWidget;
+struct FScenarioTestConfig;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnScenarioTestRequested, const FScenarioTestConfig&);
 
@@ -54,7 +56,7 @@ private:
 	bool SpawnBlueUnitAtLocation(UWorld* World, const FVector& DesiredLocation, const FRotator& Facing, const FString& MarkerName, class UStaticMesh* UnitMesh, class UMaterialInterface* UnitMaterial, const TArray<int32>& CountermeasureIndices);
 	bool FireSingleMissile(bool bFromAutoFire = false);
 	void FireMultipleMissiles(int32 Count);
-	AMockMissileActor* SpawnMissile(UWorld* World, AActor* Target);
+	AMockMissileActor* SpawnMissile(UWorld* World, AActor* Target, bool bFromAutoFire);
 	AActor* SelectNextBlueTarget();
 	void HandleMissileImpact(AMockMissileActor* Missile, AActor* HitActor);
 	void HandleMissileExpired(AMockMissileActor* Missile);
@@ -68,6 +70,7 @@ private:
 	void RemoveInputBindings();
 	void LaunchMissileFromUI();
 	void OnInputFireMissile();
+	void OnInputFinishMissileTest();
 	void OnInputCycleForward();
 	void OnInputCycleBackward();
 	void CycleViewForward();
@@ -81,6 +84,20 @@ private:
 	void EnsureMissileOverlay();
 	void RemoveMissileOverlay();
 	void UpdateMissileOverlay();
+	void RecordMissileLaunch(AMockMissileActor* Missile, AActor* Target, const FVector& LaunchLocation, bool bFromAutoFire);
+	void UpdateMissileRecordOnImpact(AMockMissileActor* Missile, AActor* HitActor, int32 DestroyedCount, const FString& HitActorName = FString());
+	void UpdateMissileRecordOnExpired(AMockMissileActor* Missile);
+	void ResetMissileTestSession();
+	void CompleteMissileTest();
+	void ClearAutoFire();
+	void BuildIndicatorEvaluations(TArray<FIndicatorEvaluationResult>& OutResults) const;
+
+public:
+	const FMissileTestSummary& GetMissileTestSummary() const { return LastMissileSummary; }
+	const TArray<FMissileTestRecord>& GetMissileTestRecords() const { return MissileTestRecords; }
+	bool HasMissileTestData() const { return MissileTestRecords.Num() > 0; }
+	const FScenarioTestConfig& GetActiveScenarioConfig() const { return ActiveScenarioConfig; }
+	void GetIndicatorEvaluations(TArray<FIndicatorEvaluationResult>& OutResults) const { BuildIndicatorEvaluations(OutResults); }
 
 public:
 	FOnScenarioTestRequested OnScenarioTestRequested;
@@ -141,7 +158,19 @@ private:
 	int32 CurrentViewIndex = 0;
 	TWeakObjectPtr<AMockMissileActor> MissileCameraTarget;
 	FTimerHandle MissileCameraTimerHandle;
+	FVector MissileCameraSmoothedLocation = FVector::ZeroVector;
+	FRotator MissileCameraSmoothedRotation = FRotator::ZeroRotator;
+	bool bMissileCameraHasHistory = false;
+	bool bMissileCameraControlInitialized = false; // 是否已初始化控制旋转，初始化后不再强制设置
 	TWeakObjectPtr<UMissileOverlayWidget> MissileOverlayWidget;
+
+private:
+	TArray<FMissileTestRecord> MissileTestRecords;
+	TMap<TWeakObjectPtr<AMockMissileActor>, int32> MissileRecordLookup;
+	FMissileTestSummary LastMissileSummary;
+	double TestSessionStartTime = 0.0;
+	FScenarioTestConfig ActiveScenarioConfig;
+	bool bHasActiveScenarioConfig = false;
 };
 
 

@@ -4,12 +4,25 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/SOverlay.h"
+#include "Styling/SlateBrush.h"
 #include "Slate/SlateBrushAsset.h"
 #include "Engine/Texture2D.h"
+
+namespace
+{
+	UTexture2D* LoadMapPreviewTexture(const TCHAR* Path)
+	{
+		return Path
+			? Cast<UTexture2D>(StaticLoadObject(UTexture2D::StaticClass(), nullptr, Path))
+			: nullptr;
+	}
+}
 
 void SEnvironmentBuilder::Construct(const FArguments& InArgs)
 {
@@ -52,7 +65,9 @@ TSharedRef<SWidget> SEnvironmentBuilder::BuildMapPreview()
 				.ColorAndOpacity(ScenarioStyle::Text)
 				.Font(ScenarioStyle::Font(14))
 			]
-			+ SVerticalBox::Slot().FillHeight(1.f)
+			+ SVerticalBox::Slot().AutoHeight()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
 			[
 				SNew(SBorder)
 				.Padding(1.f)
@@ -63,16 +78,31 @@ TSharedRef<SWidget> SEnvironmentBuilder::BuildMapPreview()
 					.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
 					.BorderBackgroundColor(ScenarioStyle::Background)
 					[
-						// 地图预览内容（暂时使用文本标识，后续替换为实际地图图片）
-						SNew(SVerticalBox)
-						+ SVerticalBox::Slot().FillHeight(1.f)
+						SNew(SBox)
+						.WidthOverride(720.f)
+						.HeightOverride(720.f)
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
 						[
-							SAssignNew(MapPreviewText, STextBlock)
-							.ColorAndOpacity(ScenarioStyle::TextDim)
-							.Font(ScenarioStyle::Font(16))
-							.Justification(ETextJustify::Center)
+							SNew(SOverlay)
+							+ SOverlay::Slot()
+							.HAlign(HAlign_Fill)
+							.VAlign(VAlign_Fill)
+							[
+								SAssignNew(MapPreviewImage, SImage)
+								.Visibility(EVisibility::Collapsed)
+								.Image(nullptr)
+							]
+							+ SOverlay::Slot()
+							.HAlign(HAlign_Center)
+							.VAlign(VAlign_Center)
+							[
+								SAssignNew(MapPreviewText, STextBlock)
+								.ColorAndOpacity(ScenarioStyle::TextDim)
+								.Font(ScenarioStyle::Font(16))
+								.Justification(ETextJustify::Center)
+								.WrapTextAt(520.f)
+							]
 						]
 					]
 				]
@@ -92,7 +122,7 @@ TSharedRef<SWidget> SEnvironmentBuilder::BuildEnvironmentSelector()
             + SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
             [
                 SNew(STextBlock)
-                .Text(FText::FromString(TEXT("预设")))
+                .Text(FText::FromString(TEXT("复杂度等级")))
                 .ColorAndOpacity(ScenarioStyle::Text)
                 .Font(ScenarioStyle::Font(14))
             ]
@@ -211,7 +241,7 @@ TSharedRef<SWidget> SEnvironmentBuilder::BuildWeatherSelector()
                     .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
                     [
                         SNew(STextBlock)
-                        .Text(FText::FromString(TEXT("雨天")))
+                        .Text(FText::FromString(TEXT("海杂波")))
                         .ColorAndOpacity(SelectedWeatherIndex == 1 ? ScenarioStyle::Accent : FLinearColor::White)
                         .Font(SelectedWeatherIndex == 1 ? ScenarioStyle::BoldFont(12) : ScenarioStyle::Font(12))
 						.Justification(ETextJustify::Center)
@@ -228,9 +258,26 @@ TSharedRef<SWidget> SEnvironmentBuilder::BuildWeatherSelector()
                     .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
                     [
                         SNew(STextBlock)
-                        .Text(FText::FromString(TEXT("雾天")))
+                        .Text(FText::FromString(TEXT("气动热效应")))
                         .ColorAndOpacity(SelectedWeatherIndex == 2 ? ScenarioStyle::Accent : FLinearColor::White)
                         .Font(SelectedWeatherIndex == 2 ? ScenarioStyle::BoldFont(12) : ScenarioStyle::Font(12))
+						.Justification(ETextJustify::Center)
+					]
+				]
+			]
+			+ SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f)
+			[
+				SNew(SButton)
+				.OnClicked_Lambda([this]() { OnWeatherChanged(3); return FReply::Handled(); })
+				[
+                    SNew(SBorder)
+                    .Padding(8.f, 4.f)
+                    .BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+                    [
+                        SNew(STextBlock)
+                        .Text(FText::FromString(TEXT("雾天")))
+                        .ColorAndOpacity(SelectedWeatherIndex == 3 ? ScenarioStyle::Accent : FLinearColor::White)
+                        .Font(SelectedWeatherIndex == 3 ? ScenarioStyle::BoldFont(12) : ScenarioStyle::Font(12))
 						.Justification(ETextJustify::Center)
 					]
 				]
@@ -550,15 +597,15 @@ TSharedRef<SWidget> SEnvironmentBuilder::BuildPresetSelector()
 
     return SNew(SHorizontalBox)
         + SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f)
-        [ MakePresetButton(1, TEXT("预设1")) ]
+        [ MakePresetButton(1, TEXT("一级")) ]
         + SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f)
-        [ MakePresetButton(2, TEXT("预设2")) ]
+        [ MakePresetButton(2, TEXT("二级")) ]
         + SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f)
-        [ MakePresetButton(3, TEXT("预设3")) ]
+        [ MakePresetButton(3, TEXT("三级")) ]
         + SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f)
-        [ MakePresetButton(4, TEXT("预设4")) ]
+        [ MakePresetButton(4, TEXT("四级")) ]
         + SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f)
-        [ MakePresetButton(5, TEXT("预设5")) ];
+        [ MakePresetButton(5, TEXT("五级")) ];
 }
 
 TSharedRef<SWidget> SEnvironmentBuilder::BuildBlueCustomDeployment()
@@ -609,16 +656,16 @@ void SEnvironmentBuilder::OnApplyPreset(int32 PresetIndex)
     // 清空/设置对应选项
     switch (PresetIndex)
     {
-        case 1: // 预设1：雨天，反制方式全选
-            SelectedWeatherIndex = 1; // 雨天
+        case 1: // 预设1：海杂波，反制方式全选
+            SelectedWeatherIndex = 1; // 海杂波
             SelectedCountermeasures = {0,1,2};
             break;
         case 2: // 预设2：晴天，通信干扰
             SelectedWeatherIndex = 0; // 晴天
             SelectedCountermeasures.Empty(); SelectedCountermeasures.Add(1);
             break;
-        case 3: // 预设3：雾天
-            SelectedWeatherIndex = 2; // 雾天
+        case 3: // 预设3：气动热效应
+            SelectedWeatherIndex = 2; // 气动热效应
             // 不改变反制方式
             break;
         case 4: // 预设4：通信干扰 晴天
@@ -638,30 +685,65 @@ void SEnvironmentBuilder::OnApplyPreset(int32 PresetIndex)
 
 void SEnvironmentBuilder::UpdateMapPreview()
 {
-	// 更新地图预览文本
-	// 实际项目中，这里应该加载对应的地图图片资源
-	// 例如：LoadObject<UTexture2D>(nullptr, TEXT("/Game/Maps/Desert_Day_Sunny_Texture"))
-	
-	static const TArray<FString> WeatherNames = { TEXT("晴天"), TEXT("雨天"), TEXT("雾天") };
-	static const TArray<FString> TimeNames = { TEXT("白天"), TEXT("夜晚") };
-	static const TArray<FString> MapNames = { TEXT("沙漠"), TEXT("森林"), TEXT("雪地"), TEXT("海边") };
-	
-	if (MapPreviewText.IsValid())
+	static const TCHAR* PreviewPaths[] =
 	{
-		FString PreviewText = FString::Printf(
-			TEXT("%s - %s - %s\n\n地图预览区域\n(需要加载实际地图图片)\n\n路径示例：\n/Game/Maps/%s_%s_%s"),
-			*WeatherNames[SelectedWeatherIndex],
-			*TimeNames[SelectedTimeIndex],
-			*MapNames[SelectedMapIndex],
-			*MapNames[SelectedMapIndex],
-			*TimeNames[SelectedTimeIndex],
-			*WeatherNames[SelectedWeatherIndex]
-		);
-		MapPreviewText->SetText(FText::FromString(PreviewText));
+		TEXT("Texture2D'/Game/Map_Cover/Desert.Desert'"),
+		TEXT("Texture2D'/Game/Map_Cover/Forest.Forest'"),
+		TEXT("Texture2D'/Game/Map_Cover/Snow.Snow'"),
+		nullptr
+	};
+
+	UTexture2D* DesiredTexture = nullptr;
+	if (SelectedMapIndex >= 0 && SelectedMapIndex < UE_ARRAY_COUNT(PreviewPaths))
+	{
+		DesiredTexture = LoadMapPreviewTexture(PreviewPaths[SelectedMapIndex]);
 	}
-	
-	UE_LOG(LogTemp, Log, TEXT("Map preview updated: Weather=%d (%s), Time=%d (%s), Map=%d (%s)"),
-		SelectedWeatherIndex, *WeatherNames[SelectedWeatherIndex],
-		SelectedTimeIndex, *TimeNames[SelectedTimeIndex],
-		SelectedMapIndex, *MapNames[SelectedMapIndex]);
+
+	if (DesiredTexture)
+	{
+		CachedPreviewTexture = DesiredTexture;
+
+		if (!MapPreviewBrush.IsValid())
+		{
+			MapPreviewBrush = MakeShared<FSlateBrush>();
+			MapPreviewBrush->DrawAs = ESlateBrushDrawType::Image;
+			MapPreviewBrush->Tiling = ESlateBrushTileType::NoTile;
+			MapPreviewBrush->ImageSize = FVector2D(720.f, 720.f);
+		}
+
+		MapPreviewBrush->SetResourceObject(DesiredTexture);
+		MapPreviewBrush->ImageSize = FVector2D(720.f, 720.f);
+
+		if (MapPreviewImage.IsValid())
+		{
+			MapPreviewImage->SetImage(MapPreviewBrush.Get());
+			MapPreviewImage->SetDesiredSizeOverride(FVector2D(720.f, 720.f));
+			MapPreviewImage->SetVisibility(EVisibility::Visible);
+		}
+
+		if (MapPreviewText.IsValid())
+		{
+			MapPreviewText->SetVisibility(EVisibility::Collapsed);
+		}
+	}
+	else
+	{
+		CachedPreviewTexture = nullptr;
+
+		if (MapPreviewImage.IsValid())
+		{
+			MapPreviewImage->SetVisibility(EVisibility::Collapsed);
+		}
+
+		if (MapPreviewText.IsValid())
+		{
+			const FString FallbackText = (SelectedMapIndex == 3)
+				? TEXT("海边暂无预览图")
+				: TEXT("请选择地图以查看预览");
+
+			MapPreviewText->SetVisibility(EVisibility::Visible);
+			MapPreviewText->SetText(FText::FromString(FallbackText));
+			MapPreviewText->SetWrapTextAt(520.f);
+		}
+	}
 }

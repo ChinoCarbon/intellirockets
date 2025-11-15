@@ -4,19 +4,35 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/PointLightComponent.h"
+#include "Components/SphereComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Components/SceneComponent.h"
 
 AMockMissileActor::AMockMissileActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 
+	CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("MissileCollision"));
+	CollisionComponent->InitSphereRadius(120.f);
+	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CollisionComponent->SetCollisionObjectType(ECC_WorldDynamic);
+	CollisionComponent->SetCollisionResponseToAllChannels(ECR_Block);
+	CollisionComponent->SetMobility(EComponentMobility::Movable);
+
+	SetRootComponent(CollisionComponent);
+
+	RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("MissileRoot"));
+	RootSceneComponent->SetupAttachment(CollisionComponent);
+	RootSceneComponent->SetMobility(EComponentMobility::Movable);
+
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
-	SetRootComponent(MeshComponent);
+	MeshComponent->SetupAttachment(RootSceneComponent);
 
 	if (MeshComponent)
 	{
 		MeshComponent->SetMobility(EComponentMobility::Movable);
-		MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		MeshComponent->SetCollisionResponseToAllChannels(ECR_Block);
 		MeshComponent->SetGenerateOverlapEvents(true);
 		MeshComponent->SetEnableGravity(false);
@@ -38,6 +54,9 @@ AMockMissileActor::AMockMissileActor()
 void AMockMissileActor::BeginPlay()
 {
 	Super::BeginPlay();
+
+	LastTrailLocation = GetActorLocation();
+	bTrailActive = true;
 }
 
 void AMockMissileActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -54,8 +73,10 @@ void AMockMissileActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void AMockMissileActor::InitializeMissile(AActor* InTarget, float InLaunchSpeed, float InMaxLifetime)
 {
 	TargetActor = InTarget;
-	Speed = InLaunchSpeed;
-	AscentSpeed = InLaunchSpeed * 0.6f;
+	const float ClampedSpeed = FMath::Clamp(InLaunchSpeed, MinLaunchSpeed, MaxLaunchSpeed);
+	Speed = ClampedSpeed;
+	AscentSpeed = ClampedSpeed * 0.5f;
+	AscentHeight = FMath::FRandRange(MinAscentHeight, MaxAscentHeight);
 	MaxLifetime = InMaxLifetime;
 	ElapsedLifetime = 0.f;
 	bHasImpacted = false;
@@ -66,6 +87,8 @@ void AMockMissileActor::InitializeMissile(AActor* InTarget, float InLaunchSpeed,
 	CachedTargetLocation = TargetActor.IsValid() ? TargetActor->GetActorLocation() : StartLocation + GetActorForwardVector() * 4000.f;
 	Velocity = FVector::UpVector * AscentSpeed;
 	SetActorRotation(Velocity.ToOrientationRotator());
+	LastTrailLocation = StartLocation;
+	bTrailActive = true;
 }
 
 void AMockMissileActor::SetupAppearance(UStaticMesh* InMesh, UMaterialInterface* InBaseMaterial, const FLinearColor& TintColor)
@@ -75,7 +98,8 @@ void AMockMissileActor::SetupAppearance(UStaticMesh* InMesh, UMaterialInterface*
 		if (InMesh)
 		{
 			MeshComponent->SetStaticMesh(InMesh);
-			MeshComponent->SetRelativeScale3D(FVector(0.9f));
+			MeshComponent->SetRelativeScale3D(FVector(0.55f));
+			MeshComponent->SetRelativeRotation(FRotator(0.f, 90.f, 0.f));
 		}
 
 		if (InBaseMaterial)
@@ -116,6 +140,8 @@ void AMockMissileActor::Tick(float DeltaSeconds)
 			UpdateHoming(DeltaSeconds);
 		}
 	}
+
+	UpdateTrail();
 }
 
 void AMockMissileActor::HandleLifetime(float DeltaSeconds)
@@ -225,6 +251,15 @@ void AMockMissileActor::HandleImpact(AActor* HitActor)
 
 	bHasImpacted = true;
 
+	if (bTrailActive)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			DrawDebugLine(World, LastTrailLocation, GetActorLocation(), FColor::Red, true, TrailLifetime, 0, TrailThickness);
+		}
+		bTrailActive = false;
+	}
+
 	OnImpact.Broadcast(this, HitActor);
 	if (!bExpiredNotified)
 	{
@@ -236,6 +271,27 @@ void AMockMissileActor::HandleImpact(AActor* HitActor)
 	{
 		Destroy();
 	}
+}
+
+void AMockMissileActor::UpdateTrail()
+{
+	if (!bTrailActive)
+	{
+		return;
+	}
+
+	const FVector CurrentLocation = GetActorLocation();
+	if (FVector::DistSquared(CurrentLocation, LastTrailLocation) < FMath::Square(TrailPointSpacing))
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		DrawDebugLine(World, LastTrailLocation, CurrentLocation, FColor::Red, true, TrailLifetime, 0, TrailThickness);
+	}
+
+	LastTrailLocation = CurrentLocation;
 }
 
 

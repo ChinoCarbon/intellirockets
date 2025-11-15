@@ -3,8 +3,11 @@
 struct FScenarioTestConfig
 {
 	int32 TestMethodIndex = 0;
+	int32 EnvironmentInterferenceIndex = 0; // 0: 无干扰场景测试方法, 1: 有干扰场景测试方法
 	TArray<int32> SelectedTableRowIndices;
 	TArray<TArray<FString>> SelectedTableRowTexts;
+	TArray<int32> SelectedPrototypeRowIndices;
+	TArray<TArray<FString>> SelectedPrototypeRowTexts;
 	TArray<FString> SelectedIndicatorIds;
 	TArray<FString> SelectedIndicatorDetails;
 	int32 WeatherIndex = 0;
@@ -23,6 +26,8 @@ struct FScenarioTestConfig
 
 class SScenarioBreadcrumb;
 class SScenarioMainTable;
+class SScenarioPrototypeTable;
+class UScenarioMenuSubsystem;
 
 DECLARE_DELEGATE(FOnPrevStep);
 DECLARE_DELEGATE(FOnNextStep);
@@ -38,6 +43,7 @@ class SScenarioScreen : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SScenarioScreen){}
 		SLATE_ARGUMENT(int32, StepIndex)
+		SLATE_ARGUMENT(class UScenarioMenuSubsystem*, OwnerSubsystem)
 		SLATE_EVENT(FOnPrevStep, OnPrevStep)
 		SLATE_EVENT(FOnNextStep, OnNextStep)
 		SLATE_EVENT(FOnSaveAll, OnSaveAll)
@@ -70,11 +76,14 @@ private:
 	int32 StepIndex = 0;
 	int32 ActiveTabIndex = 1; // 0: 智能感知算法测评, 1: 智能决策算法测评
 	int32 TestMethodIndex = 0; // 0: 正交测试, 1: 单独测试
+	int32 EnvironmentInterferenceIndex = 0; // 0: 无干扰场景测试方法, 1: 有干扰场景测试方法
 	TSharedPtr<SScenarioBreadcrumb> Breadcrumb;
 	TSharedPtr<SScenarioMainTable> MainTable; // Step1
+	TSharedPtr<SScenarioPrototypeTable> PrototypeTable; // Step1
 	TSharedPtr<class SIndicatorSelector> IndicatorSelector; // Step2
 	TSharedPtr<class SEnvironmentBuilder> EnvironmentBuilder; // Step3
 	TSharedPtr<class SVerticalBox> DecisionContentBox; // content container for step area
+	TWeakObjectPtr<class UScenarioMenuSubsystem> OwnerSubsystemWeak;
 
 	FOnPrevStep OnPrevStep;
 	FOnNextStep OnNextStep;

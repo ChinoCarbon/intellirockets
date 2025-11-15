@@ -31,11 +31,11 @@ void SScenarioBreadcrumb::SetCurrentStep(int32 InStep)
 TSharedRef<SWidget> SScenarioBreadcrumb::BuildSteps()
 {
 	static const TArray<FText> Steps = {
-		FText::FromString(TEXT("测评方法与流程设置")),
+		FText::FromString(TEXT("被测对象和测试方法选择")),
 		FText::FromString(TEXT("指标体系构建")),
 		FText::FromString(TEXT("测评环境搭建")),
 		FText::FromString(TEXT("测评流程控制")),
-		FText::FromString(TEXT("测评结果分析"))
+		FText::FromString(TEXT("测评结果分析可视化"))
 	};
 
 	TSharedRef<SHorizontalBox> Box = SNew(SHorizontalBox);

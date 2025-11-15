@@ -9,31 +9,27 @@ DECLARE_DELEGATE_OneParam(FOnRowEdit, int32 /*RowIndex*/);
 DECLARE_DELEGATE_OneParam(FOnRowDelete, int32 /*RowIndex*/);
 
 /**
- * 中心表格区域（静态示例数据 + 操作按钮）。
+ * 样机列表表格组件
  */
-class SScenarioMainTable : public SCompoundWidget
+class SScenarioPrototypeTable : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SScenarioMainTable){}
+	SLATE_BEGIN_ARGS(SScenarioPrototypeTable){}
 		SLATE_EVENT(FOnRowEdit, OnRowEdit)
 		SLATE_EVENT(FOnRowDelete, OnRowDelete)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
-    // Summary helpers
-    void GetSelectedRowIndices(TArray<int32>& OutIndices) const;
-    void GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) const;
+	// Summary helpers
+	void GetSelectedRowIndices(TArray<int32>& OutIndices) const;
+	void GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) const;
 
 private:
-	struct FAlgorithmEntry
+	struct FPrototypeEntry
 	{
-		FString Mission;
-		FString TaskDetail;
-		FString AlgorithmName;
-		FString TrainingEnvironment;
-		FString TrainingData;
-		FString ConfigPath;
+		FString PrototypeName;
+		FString Description;
 
 		TArray<FText> ToTextArray() const;
 	};
@@ -43,7 +39,7 @@ private:
 	TSharedRef<SWidget> MakeRow(int32 RowIndex);
 	void RefreshRows();
 
-	void AddAlgorithm();
+	void AddPrototype();
 	void BeginEditRow(int32 RowIndex);
 	void CommitEditRow(int32 RowIndex);
 	void RemoveRow(int32 RowIndex);
@@ -53,11 +49,11 @@ private:
 	FOnRowEdit OnRowEdit;
 	FOnRowDelete OnRowDelete;
 
-	TArray<FAlgorithmEntry> AlgorithmRows;
+	TArray<FPrototypeEntry> PrototypeRows;
 	TArray<bool> SelectedRows;
 
 	int32 EditingRowIndex = INDEX_NONE;
-	FAlgorithmEntry EditingBuffer;
+	FPrototypeEntry EditingBuffer;
 
 	TSharedPtr<SScrollBox> RowScrollBox;
 };

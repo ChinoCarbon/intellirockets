@@ -1,7 +1,6 @@
 #include "Systems/ScenarioMenuSubsystem.h"
 #include "UI/SScenarioScreen.h"
 
-#include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "Engine/DirectionalLight.h"
@@ -11,6 +10,7 @@
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SkyLightComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
@@ -25,12 +25,19 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "NavigationSystem.h"
 #include "Engine/LevelStreaming.h"
+#include "Engine/SkyLight.h"
+#include "Engine/PostProcessVolume.h"
 #include "TimerManager.h"
 #include "Actors/MockMissileActor.h"
 #include "Components/InputComponent.h"
 #include "InputCoreTypes.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/Widgets/MissileOverlayWidget.h"
+#include "GameFramework/WorldSettings.h"
+#include "HAL/PlatformTime.h"
+#include "DrawDebugHelpers.h"
+#include "CollisionQueryParams.h"
+#include "Engine/Engine.h"
 
 void UScenarioMenuSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -115,6 +122,7 @@ void UScenarioMenuSubsystem::Show(UWorld* World)
 
 	SAssignNew(Screen, SScenarioScreen)
 		.StepIndex(StepIndex)
+		.OwnerSubsystem(this)
 		.OnPrevStep(FOnPrevStep::CreateUObject(this, &UScenarioMenuSubsystem::Prev))
 		.OnNextStep(FOnNextStep::CreateUObject(this, &UScenarioMenuSubsystem::Next))
 		.OnSaveAll(FOnSaveAll::CreateUObject(this, &UScenarioMenuSubsystem::SaveAll))
@@ -184,6 +192,9 @@ void UScenarioMenuSubsystem::BeginScenarioTest()
 	PendingScenarioConfig = Config;
 	bHasPendingScenarioConfig = true;
 	bIsRunningScenario = true;
+	ResetMissileTestSession();
+	ActiveScenarioConfig = Config;
+	bHasActiveScenarioConfig = true;
 	ClearSpawnedBlueUnits();
 
 	if (OnScenarioTestRequested.IsBound())
@@ -195,8 +206,7 @@ void UScenarioMenuSubsystem::BeginScenarioTest()
 		UE_LOG(LogTemp, Warning, TEXT("No listeners bound to OnScenarioTestRequested; remember to start the scenario manually."));
 	}
 
-	UWorld* World = GetWorld();
-	if (World)
+	if (UWorld* World = GetWorld())
 	{
 		Hide(World);
 		if (!Config.MapLevelName.IsNone())
@@ -214,6 +224,337 @@ void UScenarioMenuSubsystem::BeginScenarioTest()
 	}
 }
 
+void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluationResult>& OutResults) const
+{
+	OutResults.Reset();
+
+	if (!bHasActiveScenarioConfig || ActiveScenarioConfig.SelectedIndicatorIds.Num() == 0)
+	{
+		return;
+}
+
+	const bool bHasData = MissileTestRecords.Num() > 0;
+	const FMissileTestSummary& Summary = LastMissileSummary;
+
+	// 预先计算自动发射相关的统计数据（避免在循环中重复计算）
+	int32 AutoHits = 0;
+	int32 AutoShots = 0;
+	for (const FMissileTestRecord& Record : MissileTestRecords)
+	{
+		if (Record.bAutoFire)
+		{
+			++AutoShots;
+			if (Record.DestroyedCount > 0)
+			{
+				++AutoHits;
+			}
+		}
+	}
+	const float AutoHitRate = AutoShots > 0 ? (static_cast<float>(AutoHits) * 100.f / AutoShots) : 0.f;
+	const float AutoFireRatio = Summary.TotalShots > 0 ? (static_cast<float>(Summary.AutoShots) * 100.f / Summary.TotalShots) : 0.f;
+
+	for (int32 Index = 0; Index < ActiveScenarioConfig.SelectedIndicatorIds.Num(); ++Index)
+	{
+		const FString& IndicatorId = ActiveScenarioConfig.SelectedIndicatorIds[Index];
+		const FString DisplayName = ActiveScenarioConfig.SelectedIndicatorDetails.IsValidIndex(Index)
+			? ActiveScenarioConfig.SelectedIndicatorDetails[Index]
+			: IndicatorId;
+
+		FIndicatorEvaluationResult Result;
+		Result.IndicatorId = IndicatorId;
+		Result.DisplayName = DisplayName;
+		Result.StatusText = TEXT("未接入");
+		Result.StatusColor = FLinearColor(0.4f, 0.4f, 0.4f);
+		Result.RemarkText = TEXT("尚未接入该指标的数据采集管线。");
+		Result.TargetText = TEXT("—");
+		Result.ValueText = TEXT("—");
+
+		if (!bHasData)
+		{
+			Result.RemarkText = TEXT("尚未执行导弹测试。按 P 结束一次测试后将生成数据。");
+			OutResults.Add(Result);
+			continue;
+		}
+
+		auto EvaluateThreshold = [&Result](float Value, float Target, bool bHigherIsBetter, const FString& Unit, const FString& Remark)
+		{
+			Result.ValueText = FString::Printf(TEXT("%.2f%s"), Value, *Unit);
+			Result.TargetText = FString::Printf(TEXT("%s %.2f%s"),
+				bHigherIsBetter ? TEXT("≥") : TEXT("≤"),
+				Target, *Unit);
+			const bool bPass = bHigherIsBetter ? (Value >= Target) : (Value <= Target);
+			Result.bHasData = true;
+			Result.bPass = bPass;
+			Result.StatusText = bPass ? TEXT("达标") : TEXT("未达标");
+			Result.StatusColor = bPass ? FLinearColor(0.1f, 0.8f, 0.3f) : FLinearColor(0.85f, 0.2f, 0.2f);
+			Result.RemarkText = Remark;
+		};
+
+		if (IndicatorId == TEXT("3.4.1.1"))
+		{
+			const float Value = Summary.AverageAutoLaunchInterval > 0.f ? Summary.AverageAutoLaunchInterval : Summary.AverageFlightTime;
+			EvaluateThreshold(Value, 0.5f, false, TEXT(" s"), TEXT("以自动发射间隔/飞行时间估算决策生成速度。"));
+		}
+		else if (IndicatorId == TEXT("3.4.1.2"))
+		{
+			// 可解释性-目标优先级设定：使用直接命中率衡量目标选择的准确性
+			EvaluateThreshold(Summary.DirectHitRate, 80.f, true, TEXT("%"), TEXT("基于直接命中率，反映目标优先级设定的准确性。"));
+		}
+		else if (IndicatorId == TEXT("3.4.1.3"))
+		{
+			// 性能性-路径规划精度：使用命中率衡量路径规划的有效性
+			EvaluateThreshold(Summary.HitRate, 85.f, true, TEXT("%"), TEXT("基于导弹命中率，反映路径规划的准确性和可执行性。"));
+		}
+		else if (IndicatorId == TEXT("3.4.1.4"))
+		{
+			// 性能性-全局最优路径规划精度：使用直接命中率衡量路径规划的精确度
+			EvaluateThreshold(Summary.DirectHitRate, 75.f, true, TEXT("%"), TEXT("基于直接命中率，反映全局最优路径规划的准确性。"));
+		}
+		else if (IndicatorId == TEXT("3.4.1.5"))
+		{
+			// 性能性-资源分配优化精度：使用每次命中平均摧毁数衡量资源利用效率
+			EvaluateThreshold(Summary.AverageDestroyedPerHit, 1.5f, true, TEXT(""), TEXT("基于每次命中平均摧毁数，反映资源分配的优化精度。"));
+		}
+		else if (IndicatorId == TEXT("3.4.1.6") || IndicatorId == TEXT("3.4.3.2"))
+		{
+			const float TargetPercent = IndicatorId == TEXT("3.4.1.6") ? 85.f : 95.f;
+			EvaluateThreshold(Summary.HitRate, TargetPercent, true, TEXT("%"), TEXT("基于导弹命中率。"));
+		}
+		else if (IndicatorId == TEXT("3.4.1.7"))
+		{
+			// 可靠性-多智能体协同决策成功率：使用自动发射的命中率
+			EvaluateThreshold(AutoHitRate, 80.f, true, TEXT("%"), TEXT("基于自动发射命中率，反映多智能体协同决策的成功率。"));
+		}
+		else if (IndicatorId == TEXT("3.4.1.8"))
+		{
+			// 功能性-任务分配协调性：使用自动发射比例衡量任务分配的协调性
+			EvaluateThreshold(AutoFireRatio, 50.f, true, TEXT("%"), TEXT("基于自动发射比例，反映多个智能体之间任务分配和协调的精确度。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.1"))
+		{
+			// 鲁棒性-动态战术调整能力：基于自动发射命中率，反映动态调整战术的能力
+			EvaluateThreshold(AutoHitRate, 80.f, true, TEXT("%"), TEXT("基于自动发射在不同目标选择下的命中率，反映动态调整战术的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.2"))
+		{
+			// 智能性-敌方行动预测智能：基于直接命中率，反映预测敌方行动的智能水平
+			EvaluateThreshold(Summary.DirectHitRate, 75.f, true, TEXT("%"), TEXT("基于直接命中率，反映预测敌方行动和选择最佳攻击时机的智能水平。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.3"))
+		{
+			// 鲁棒性-策略演化能力：基于自动发射命中率，反映策略适应和演化的能力
+			EvaluateThreshold(AutoHitRate, 70.f, true, TEXT("%"), TEXT("基于自动发射命中率与手动发射命中率的对比，反映策略适应和演化的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.4"))
+		{
+			// 智能性-多目标优化智能：基于每次命中平均摧毁数，反映多目标优化能力
+			EvaluateThreshold(Summary.AverageDestroyedPerHit, 1.8f, true, TEXT(""), TEXT("基于每次命中平均摧毁数，反映在多目标环境中智能选择最优攻击策略的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.5"))
+		{
+			// 未来可扩展性-对抗学习智能：基于整体命中率，反映通过学习提升反制策略的智能水平
+			EvaluateThreshold(Summary.HitRate, 85.f, true, TEXT("%"), TEXT("基于整体命中率，反映通过学习提升反制策略的智能水平。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.6"))
+		{
+			// 智能性-博弈均衡智能：基于直接命中率，反映通过博弈理论选择最佳对抗策略的智能水平
+			EvaluateThreshold(Summary.DirectHitRate, 78.f, true, TEXT("%"), TEXT("基于直接命中率，反映通过博弈理论选择最佳对抗策略的智能水平。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.7"))
+		{
+			// 智能性-群体协作智能：基于自动发射命中率，反映群体智能体通过协作优化整体决策的表现
+			EvaluateThreshold(AutoHitRate, 82.f, true, TEXT("%"), TEXT("基于自动发射命中率，反映群体智能体通过协作优化整体决策的表现。"));
+		}
+		else if (IndicatorId == TEXT("3.4.2.8"))
+		{
+			// 智能性-协同决策学习智能：基于自动发射比例与命中率的综合评估
+			// 使用自动发射比例和命中率的加权平均：比例占40%，命中率占60%
+			const float CollaborativeScore = (AutoFireRatio * 0.4f) + (AutoHitRate * 0.6f);
+			EvaluateThreshold(CollaborativeScore, 60.f, true, TEXT("%"), TEXT("基于自动发射比例与命中率的综合评估，反映协同决策学习的智能水平。"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.1"))
+		{
+			// 效能性-资源使用效能：基于每次命中平均摧毁数，反映资源使用的最大化效率
+			EvaluateThreshold(Summary.AverageDestroyedPerHit, 1.6f, true, TEXT(""), TEXT("基于每次命中平均摧毁数，反映资源使用的最大化效率。"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.2"))
+		{
+			// 效能性-任务完成率：基于导弹命中率
+			EvaluateThreshold(Summary.HitRate, 95.f, true, TEXT("%"), TEXT("基于导弹命中率。"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.3"))
+		{
+			const float Value = Summary.AverageFlightTime;
+			EvaluateThreshold(Value, 1.0f, false, TEXT(" s"), TEXT("以导弹平均飞行时间近似路径执行时长。"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.4"))
+		{
+			// 效能性-反制策略执行效能：基于导弹平均飞行时间，反映反制策略生成和执行的效率
+			const float Value = Summary.AverageFlightTime;
+			EvaluateThreshold(Value, 0.8f, false, TEXT(" s"), TEXT("基于导弹平均飞行时间，反映反制策略生成和执行的效率。"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.5"))
+		{
+			// 安全性-敌方行为预测效能：基于直接命中率，反映预测敌方行为的准确性和效率
+			EvaluateThreshold(Summary.DirectHitRate, 80.f, true, TEXT("%"), TEXT("基于直接命中率，反映预测敌方行为的准确性和效率。"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.6"))
+		{
+			// 可靠性-多智能体任务完成时间：基于自动发射导弹的平均飞行时间
+			// 计算自动发射导弹的平均飞行时间
+			float AutoFlightTime = 0.f;
+			int32 AutoFlightCount = 0;
+			for (const FMissileTestRecord& Record : MissileTestRecords)
+			{
+				if (Record.bAutoFire)
+				{
+					const float FlightDuration = Record.GetFlightDuration();
+					if (FlightDuration > 0.f)
+					{
+						AutoFlightTime += FlightDuration;
+						++AutoFlightCount;
+					}
+				}
+			}
+			const float AvgAutoFlightTime = AutoFlightCount > 0 ? (AutoFlightTime / AutoFlightCount) : Summary.AverageFlightTime;
+			EvaluateThreshold(AvgAutoFlightTime, 1.2f, false, TEXT(" s"), TEXT("基于自动发射导弹的平均飞行时间，反映多智能体任务完成的效率。"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.7"))
+		{
+			// 效能性-协同决策效能：基于自动发射命中率与资源利用效率的综合评估
+			// 使用自动发射命中率（60%）和资源利用效率（40%）的加权平均
+			const float ResourceEfficiency = Summary.AverageDestroyedPerHit;
+			const float NormalizedResourceEfficiency = FMath::Clamp(ResourceEfficiency / 2.0f * 100.f, 0.f, 100.f); // 归一化到0-100%
+			const float CollaborativeEfficiency = (AutoHitRate * 0.6f) + (NormalizedResourceEfficiency * 0.4f);
+			EvaluateThreshold(CollaborativeEfficiency, 75.f, true, TEXT("%"), TEXT("基于自动发射命中率与资源利用效率的综合评估，反映协同决策的效能。"));
+		}
+		else if (IndicatorId == TEXT("3.5.1.1"))
+		{
+			// 功能性-多任务协调能力：基于自动发射比例，反映多任务场景下协调不同智能体执行任务的能力
+			EvaluateThreshold(AutoFireRatio, 70.f, true, TEXT("%"), TEXT("基于自动发射比例，反映多任务场景下协调不同智能体执行任务的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.5.1.2"))
+		{
+			// 性能性-全局决策优化能力：基于整体命中率，反映在多目标场景中进行全局最优决策的能力
+			EvaluateThreshold(Summary.HitRate, 80.f, true, TEXT("%"), TEXT("基于整体命中率，反映在多目标场景中进行全局最优决策的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.5.1.3"))
+		{
+			// 性能性-任务切换响应速度：基于自动发射间隔，反映任务切换的响应速度
+			const float TaskSwitchTime = Summary.AverageAutoLaunchInterval > 0.f ? Summary.AverageAutoLaunchInterval : 0.6f;
+			EvaluateThreshold(TaskSwitchTime, 0.6f, false, TEXT(" s"), TEXT("基于自动发射间隔，反映任务切换的响应速度。"));
+		}
+		else if (IndicatorId == TEXT("3.5.1.4"))
+		{
+			// 可靠性-故障恢复能力：基于整体命中率，反映在系统失效情况下恢复正常决策功能的能力
+			EvaluateThreshold(Summary.HitRate, 85.f, true, TEXT("%"), TEXT("基于整体命中率，反映在系统失效情况下恢复正常决策功能的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.5.1.5"))
+		{
+			// 性能性-全局优化任务分配精度：基于自动发射命中率，反映在多个任务环境中最优分配任务的精度
+			EvaluateThreshold(AutoHitRate, 75.f, true, TEXT("%"), TEXT("基于自动发射命中率，反映在多个任务环境中最优分配任务的精度。"));
+		}
+		else if (IndicatorId == TEXT("3.5.1.6"))
+		{
+			// 功能性-层次对抗策略执行成功率：基于直接命中率，反映在多层次对抗中成功执行反制策略的比例
+			EvaluateThreshold(Summary.DirectHitRate, 82.f, true, TEXT("%"), TEXT("基于直接命中率，反映在多层次对抗中成功执行反制策略的比例。"));
+		}
+		else if (IndicatorId == TEXT("3.5.1.7"))
+		{
+			// 鲁棒性-多智能体协同效能：基于自动发射命中率与任务完成效率的综合评估
+			// 使用自动发射命中率（70%）和任务完成率（30%）的加权平均
+			const float TaskCompletionRate = Summary.HitRate;
+			const float CoordinationEfficiency = (AutoHitRate * 0.7f) + (TaskCompletionRate * 0.3f);
+			EvaluateThreshold(CoordinationEfficiency, 78.f, true, TEXT("%"), TEXT("基于自动发射命中率与任务完成效率的综合评估，反映多智能体协同效能。"));
+		}
+		else if (IndicatorId == TEXT("3.5.2.1"))
+		{
+			// 未来可扩展性-系统自学习能力：基于整体命中率，反映通过博弈对抗不断提升自身决策效率和准确性的能力
+			EvaluateThreshold(Summary.HitRate, 83.f, true, TEXT("%"), TEXT("基于整体命中率，反映通过博弈对抗不断提升自身决策效率和准确性的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.5.2.2"))
+		{
+			// 智能性-协作决策智能：基于自动发射命中率，反映多智能体协同作战时生成一致性决策的智能水平
+			EvaluateThreshold(AutoHitRate, 80.f, true, TEXT("%"), TEXT("基于自动发射命中率，反映多智能体协同作战时生成一致性决策的智能水平。"));
+		}
+		else if (IndicatorId == TEXT("3.5.2.3"))
+		{
+			// 可解释性-全局态势感知智能：基于整体命中率，反映对全局态势的理解和智能决策支持
+			EvaluateThreshold(Summary.HitRate, 85.f, true, TEXT("%"), TEXT("基于整体命中率，反映对全局态势的理解和智能决策支持。"));
+		}
+		else if (IndicatorId == TEXT("3.5.2.4"))
+		{
+			// 可解释性-全局任务分解智能：基于自动发射比例，反映智能分解全局复杂任务为多个可执行子任务并协调智能体执行的能力
+			EvaluateThreshold(AutoFireRatio, 72.f, true, TEXT("%"), TEXT("基于自动发射比例，反映智能分解全局复杂任务为多个可执行子任务并协调智能体执行的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.5.2.5"))
+		{
+			// 智能性-策略调整智能：基于直接命中率，反映在对抗环境中根据实时战场态势智能调整反制策略的能力
+			EvaluateThreshold(Summary.DirectHitRate, 79.f, true, TEXT("%"), TEXT("基于直接命中率，反映在对抗环境中根据实时战场态势智能调整反制策略的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.5.2.6"))
+		{
+			// 智能性-集群协作智能：基于自动发射命中率与任务完成率的综合评估
+			// 使用自动发射命中率（65%）和任务完成率（35%）的加权平均
+			const float TaskCompletionRate = Summary.HitRate;
+			const float SwarmCollaborationIntelligence = (AutoHitRate * 0.65f) + (TaskCompletionRate * 0.35f);
+			EvaluateThreshold(SwarmCollaborationIntelligence, 81.f, true, TEXT("%"), TEXT("基于自动发射命中率与任务完成率的综合评估，反映智能协调多个智能体协同完成任务的能力。"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.1"))
+		{
+			// 效能性-任务分配效能：基于自动发射比例，反映在不同智能体之间分配任务的效率和合理性
+			EvaluateThreshold(AutoFireRatio, 68.f, true, TEXT("%"), TEXT("基于自动发射比例，反映在不同智能体之间分配任务的效率和合理性。"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.2"))
+		{
+			// 效能性-作战资源管理效能：基于每次命中平均摧毁数，反映在复杂战场中有效管理和调度资源的表现
+			EvaluateThreshold(Summary.AverageDestroyedPerHit, 1.7f, true, TEXT(""), TEXT("基于每次命中平均摧毁数，反映在复杂战场中有效管理和调度资源的表现。"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.3"))
+		{
+			// 效能性-任务完成时间：基于导弹平均飞行时间，反映系统完成任务所需的平均时间
+			const float Value = Summary.AverageFlightTime;
+			EvaluateThreshold(Value, 1.1f, false, TEXT(" s"), TEXT("基于导弹平均飞行时间，反映系统完成任务所需的平均时间。"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.4"))
+		{
+			// 效能性-决策一致性：基于自动发射命中率，反映在多智能体决策中的一致性表现，避免冲突决策
+			EvaluateThreshold(AutoHitRate, 77.f, true, TEXT("%"), TEXT("基于自动发射命中率，反映在多智能体决策中的一致性表现，避免冲突决策。"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.5"))
+		{
+			// 安全性-策略反制效能：基于导弹平均飞行时间，反映反制策略的生成和执行效能
+			const float Value = Summary.AverageFlightTime;
+			EvaluateThreshold(Value, 0.9f, false, TEXT(" s"), TEXT("基于导弹平均飞行时间，反映反制策略的生成和执行效能。"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.6"))
+		{
+			// 效能性-集群任务执行效能：基于自动发射命中率与资源利用效率的综合评估
+			// 使用自动发射命中率（55%）和资源利用效率（45%）的加权平均
+			const float ResourceEfficiency = Summary.AverageDestroyedPerHit;
+			const float NormalizedResourceEfficiency = FMath::Clamp(ResourceEfficiency / 2.0f * 100.f, 0.f, 100.f); // 归一化到0-100%
+			const float SwarmExecutionEfficiency = (AutoHitRate * 0.55f) + (NormalizedResourceEfficiency * 0.45f);
+			EvaluateThreshold(SwarmExecutionEfficiency, 80.f, true, TEXT("%"), TEXT("基于自动发射命中率与资源利用效率的综合评估，反映通过群体算法高效完成任务的能力。"));
+		}
+		else
+		{
+			if (false)
+			{
+				// placeholder for future mappings
+			}
+			else
+			{
+				if (bHasData)
+				{
+					Result.RemarkText = TEXT("尚未为该指标实现数据采集与计算。");
+				}
+			}
+		}
+
+		OutResults.Add(Result);
+	}
+}
+
 void UScenarioMenuSubsystem::ApplyEnvironmentSettings(UWorld* World, const FScenarioTestConfig& Config)
 {
 	if (!World)
@@ -221,15 +562,42 @@ void UScenarioMenuSubsystem::ApplyEnvironmentSettings(UWorld* World, const FScen
 		return;
 	}
 	
+	const bool bDay = Config.TimeIndex == 0;
+	const float TargetExposure = bDay ? 1.0f : 0.7f;
+
+	UKismetSystemLibrary::ExecuteConsoleCommand(World, TEXT("r.EyeAdaptationQuality 0"));
+
+	auto ConfigureExposure = [TargetExposure](FPostProcessSettings& Settings)
+	{
+		Settings.bOverride_AutoExposureMethod = true;
+		Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+		Settings.bOverride_AutoExposureBias = true;
+		Settings.AutoExposureBias = 0.f;
+		Settings.bOverride_AutoExposureMinBrightness = true;
+		Settings.AutoExposureMinBrightness = TargetExposure;
+		Settings.bOverride_AutoExposureMaxBrightness = true;
+        Settings.AutoExposureMaxBrightness = TargetExposure;
+		Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+		Settings.AutoExposureApplyPhysicalCameraExposure = false;
+		Settings.bOverride_AutoExposureSpeedDown = true;
+		Settings.AutoExposureSpeedDown = 30.f;
+		Settings.bOverride_AutoExposureSpeedUp = true;
+		Settings.AutoExposureSpeedUp = 30.f;
+	};
 
 	// 时间段 -> 太阳角度和颜色
 	if (ADirectionalLight* Dir = Cast<ADirectionalLight>(UGameplayStatics::GetActorOfClass(World, ADirectionalLight::StaticClass())))
 	{
 		if (UDirectionalLightComponent* LightComp = Cast<UDirectionalLightComponent>(Dir->GetLightComponent()))
 		{
-			const bool bDay = Config.TimeIndex == 0;
-			LightComp->SetIntensity(bDay ? 50.f : 5.f);
-			LightComp->SetLightColor(bDay ? FLinearColor(1.f, 0.95f, 0.85f) : FLinearColor(0.1f, 0.15f, 0.15f));
+			const float TargetPitch = bDay ? -35.f : -12.f;
+			FRotator NewRotation = Dir->GetActorRotation();
+			NewRotation.Pitch = TargetPitch;
+			Dir->SetActorRotation(NewRotation);
+
+			LightComp->SetIntensity(bDay ? 50.f : 1.2f);
+			LightComp->SetLightColor(bDay ? FLinearColor(1.f, 0.95f, 0.85f) : FLinearColor(0.2f, 0.25f, 0.35f));
+			LightComp->MarkRenderStateDirty();
 		}
 		else
 		{
@@ -237,12 +605,26 @@ void UScenarioMenuSubsystem::ApplyEnvironmentSettings(UWorld* World, const FScen
 		}
 	}
 
+	if (ASkyLight* Sky = Cast<ASkyLight>(UGameplayStatics::GetActorOfClass(World, ASkyLight::StaticClass())))
+	{
+		if (USkyLightComponent* SkyComp = Sky->GetLightComponent())
+		{
+			SkyComp->SetIntensity(bDay ? 1.2f : 0.3f);
+			SkyComp->SetVolumetricScatteringIntensity(bDay ? 1.0f : 0.35f);
+			SkyComp->bLowerHemisphereIsBlack = !bDay;
+			SkyComp->SetLowerHemisphereColor(bDay ? FLinearColor::Black : FLinearColor(0.01f, 0.01f, 0.015f));
+			SkyComp->MarkRenderStateDirty();
+			SkyComp->RecaptureSky();
+		}
+	}
+
+
 	// 雾密度
 	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
 	{
 		if (UExponentialHeightFogComponent* FogComp = It->GetComponent())
 		{
-			if (Config.WeatherIndex == 2) // 雾天
+			if (Config.WeatherIndex == 3) // 雾天
 			{
 				FogComp->SetFogDensity(0.9f);
 			}
@@ -252,6 +634,20 @@ void UScenarioMenuSubsystem::ApplyEnvironmentSettings(UWorld* World, const FScen
 			}
 		}
 	}
+
+	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+	{
+		APostProcessVolume* Volume = *It;
+		if (!Volume)
+		{
+			continue;
+		}
+
+		FPostProcessSettings& Settings = Volume->Settings;
+		ConfigureExposure(Settings);
+	}
+
+	// 若需要，可在具体关卡的后处理体积上调整；当前版本未直接修改 WorldSettings。
 
 	// 简单的降雨开关：查找带有 RainFX 标签或名字包含 Rain 的 Actor
 /*	const bool bEnableRain = (Config.WeatherIndex == 1);
@@ -581,9 +977,9 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 		{
 			const int32 UnitType = FMath::RandRange(0, 2);
 			const int32 SlotIndex = ExistingCount + LocalCount;
-			constexpr float BaseRadius = 200.f;
-			constexpr float RadiusStep = 220.f;
-			constexpr int32 SlotsPerRing = 6;
+			constexpr float BaseRadius = 1680.f;
+			constexpr float RadiusStep = 1280.f;
+			constexpr int32 SlotsPerRing = 8;
 
 			const int32 RingIndex = SlotIndex / SlotsPerRing;
 			const int32 SlotIndexInRing = SlotIndex % SlotsPerRing;
@@ -607,7 +1003,7 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 				+ ForwardDir * (BaseDir.X * Radius)
 				+ RightDir * (BaseDir.Y * Radius);
 
-			const float Jitter = 25.f;
+			const float Jitter = 240.f;
 			DesiredLocation += ForwardDir * FMath::FRandRange(-Jitter, Jitter);
 			DesiredLocation += RightDir * FMath::FRandRange(-Jitter, Jitter);
 
@@ -708,9 +1104,9 @@ UStaticMesh* UScenarioMenuSubsystem::ResolveBlueUnitMeshByType(int32 TypeIndex) 
 {
 	static const TCHAR* MeshPaths[] =
 	{
-		TEXT("/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"),
-		TEXT("/Game/StarterContent/Shapes/Shape_Sphere.Shape_Sphere"),
-		TEXT("/Game/StarterContent/Shapes/Shape_Cylinder.Shape_Cylinder"),
+		TEXT("/Game/Military_Free/Meshes/SM_radiostation_001.SM_radiostation_001"),
+		TEXT("/Game/T-34-85/Models/SM_T-34-85.SM_T-34-85"),
+		TEXT("/Game/Military_Free/Meshes/SM_radar_station_002.SM_radar_station_002"),
 	};
 
 	constexpr int32 MaxTypes = UE_ARRAY_COUNT(MeshPaths);
@@ -738,9 +1134,9 @@ UMaterialInterface* UScenarioMenuSubsystem::ResolveBlueUnitMaterialByType(int32 
 {
 	static const TCHAR* MaterialPaths[] =
 	{
-		TEXT("/Game/StarterContent/Materials/M_Glow.M_Glow"),
-		TEXT("/Game/StarterContent/Materials/M_Metal_Gold.M_Metal_Gold"),
 		TEXT("/Game/StarterContent/Materials/M_Metal_Copper.M_Metal_Copper"),
+		TEXT("/Game/StarterContent/Materials/M_Metal_Gold.M_Metal_Gold"),
+		TEXT("/Game/StarterContent/Materials/M_Metal_Burnished_Steel.M_Metal_Burnished_Steel"),
 	};
 
 	constexpr int32 MaxTypes = UE_ARRAY_COUNT(MaterialPaths);
@@ -984,9 +1380,9 @@ void UScenarioMenuSubsystem::SpawnBlueUnitAtMarker(int32 MarkerIndex, int32 Unit
 	}
 
 	const int32 ExistingCount = BlueMarkerSpawnCounts.IsValidIndex(MarkerIndex) ? BlueMarkerSpawnCounts[MarkerIndex] : 0;
-	constexpr float BaseRadius = 200.f;
-	constexpr float RadiusStep = 220.f;
-	const int32 SlotsPerRing = 6;
+	constexpr float BaseRadius = 1680.f;
+	constexpr float RadiusStep = 1280.f;
+	const int32 SlotsPerRing = 8;
 
 	const int32 RingIndex = ExistingCount / SlotsPerRing;
 	const int32 SlotIndexInRing = ExistingCount % SlotsPerRing;
@@ -1001,7 +1397,7 @@ void UScenarioMenuSubsystem::SpawnBlueUnitAtMarker(int32 MarkerIndex, int32 Unit
 		+ ForwardDir * (BaseDir.X * Radius)
 		+ RightDir * (BaseDir.Y * Radius);
 
-	const float Jitter = 25.f;
+	const float Jitter = 240.f;
 	DesiredLocation += ForwardDir * FMath::FRandRange(-Jitter, Jitter);
 	DesiredLocation += RightDir * FMath::FRandRange(-Jitter, Jitter);
 
@@ -1217,16 +1613,11 @@ bool UScenarioMenuSubsystem::FireSingleMissile(bool bFromAutoFire /*= false*/)
 		return false;
 	}
 
-	AMockMissileActor* Missile = SpawnMissile(World, Target);
+	AMockMissileActor* Missile = SpawnMissile(World, Target, bFromAutoFire);
 	if (!Missile)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("FireSingleMissile: failed to spawn missile."));
 		return false;
-	}
-
-	if (bFromAutoFire || !MissileCameraTarget.IsValid())
-	{
-		FocusCameraOnMissile(Missile);
 	}
 
 	return true;
@@ -1244,7 +1635,7 @@ void UScenarioMenuSubsystem::FireMultipleMissiles(int32 Count)
 	BeginMissileAutoFire(SafeCount);
 }
 
-AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* Target)
+AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* Target, bool bFromAutoFire)
 {
 	if (!World || !Target)
 	{
@@ -1274,11 +1665,12 @@ AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* T
 		Missile->SetupAppearance(MissileMesh, MissileMaterial, FLinearColor(1.f, 0.1f, 0.1f));
 	}
 
-	Missile->InitializeMissile(Target, 9000.f, 45.f);
+	Missile->InitializeMissile(Target, 4500.f, 45.f);
 	Missile->OnImpact.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileImpact);
 	Missile->OnExpired.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileExpired);
 
 	ActiveMissiles.Add(Missile);
+	RecordMissileLaunch(Missile, Target, SpawnLocation, bFromAutoFire);
 
 	UE_LOG(LogTemp, Log, TEXT("SpawnMissile: launched missile toward %s from %s"), *Target->GetName(), *SpawnLocation.ToString());
 	RebuildViewSequence();
@@ -1315,8 +1707,11 @@ void UScenarioMenuSubsystem::HandleMissileImpact(AMockMissileActor* Missile, AAc
 	const FVector ExplosionLocation = Missile && !Missile->IsPendingKillPending() ? Missile->GetActorLocation()
 		: (HitActor ? HitActor->GetActorLocation() : FVector::ZeroVector);
 
-	const float ExplosionRadius = 900.f;
+	const float ExplosionRadius = 4500.f; // 最初900.f的五倍
 	int32 DestroyedCount = 0;
+	
+	// 在销毁目标之前保存目标名称，用于后续判断直接命中
+	FString HitActorName = HitActor ? HitActor->GetName() : FString();
 
 	if (HitActor && !HitActor->IsPendingKillPending() && ActiveBlueUnits.Contains(HitActor))
 	{
@@ -1365,6 +1760,8 @@ void UScenarioMenuSubsystem::HandleMissileImpact(AMockMissileActor* Missile, AAc
 		return UnitsToRemove.Contains(Ptr.Get());
 	});
 
+	UpdateMissileRecordOnImpact(Missile, HitActor, DestroyedCount, HitActorName);
+
 	if (DestroyedCount == 0)
 	{
 		UE_LOG(LogTemp, Log, TEXT("HandleMissileImpact: missile detonated without destroying any blue unit. HitActor=%s"), HitActor ? *HitActor->GetName() : TEXT("None"));
@@ -1406,6 +1803,8 @@ void UScenarioMenuSubsystem::HandleMissileImpact(AMockMissileActor* Missile, AAc
 void UScenarioMenuSubsystem::HandleMissileExpired(AMockMissileActor* Missile)
 {
 	const bool bWasCameraTarget = MissileCameraTarget.Get() == Missile;
+
+	UpdateMissileRecordOnExpired(Missile);
 
 	ActiveMissiles.RemoveAll([Missile](const TWeakObjectPtr<AMockMissileActor>& Ptr)
 	{
@@ -1449,14 +1848,14 @@ UStaticMesh* UScenarioMenuSubsystem::ResolveMissileMesh() const
 {
 	if (!CachedMissileMesh.IsValid())
 	{
-		FSoftObjectPath MeshPath(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+		FSoftObjectPath MeshPath(TEXT("/Game/Sayantan/Props/Small/CruiseMissile_FREE/Models/SM_CruiseMissile.SM_CruiseMissile"));
 		if (UStaticMesh* Mesh = Cast<UStaticMesh>(MeshPath.TryLoad()))
 		{
 			CachedMissileMesh = Mesh;
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ResolveMissileMesh: failed to load basic sphere mesh."));
+			UE_LOG(LogTemp, Warning, TEXT("ResolveMissileMesh: failed to load SM_CruiseMissile mesh."));
 			return nullptr;
 		}
 	}
@@ -1527,20 +1926,14 @@ void UScenarioMenuSubsystem::HandleAutoFireTick()
 {
 	if (AutoFireRemaining <= 0)
 	{
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
-		}
+		ClearAutoFire();
 		return;
 	}
 
 	if (!FireSingleMissile(true))
 	{
 		AutoFireRemaining = 0;
-		if (UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
-		}
+		ClearAutoFire();
 		return;
 	}
 
@@ -1570,6 +1963,7 @@ void UScenarioMenuSubsystem::SetupInputBindings(UWorld* World)
 			MissileInputComponent->RegisterComponent();
 			MissileInputComponent->Priority = 10;
 			MissileInputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputFireMissile);
+			MissileInputComponent->BindKey(EKeys::P, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputFinishMissileTest);
 			MissileInputComponent->BindKey(EKeys::Q, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleBackward);
 			MissileInputComponent->BindKey(EKeys::E, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleForward);
 		}
@@ -1613,6 +2007,28 @@ void UScenarioMenuSubsystem::OnInputFireMissile()
 	FireSingleMissile();
 }
 
+void UScenarioMenuSubsystem::OnInputFinishMissileTest()
+{
+	CompleteMissileTest();
+	FocusInitialView();
+	RemoveMissileOverlay();
+	bIsRunningScenario = false;
+
+	if (!Screen.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			Show(World);
+		}
+	}
+
+	StepIndex = 4;
+	if (Screen.IsValid())
+	{
+		Screen->SetStepIndex(StepIndex);
+	}
+}
+
 void UScenarioMenuSubsystem::OnInputCycleForward()
 {
 	CycleViewForward();
@@ -1651,6 +2067,9 @@ void UScenarioMenuSubsystem::FocusInitialView()
 {
 	ReturnCameraToInitial();
 	CurrentViewIndex = 0;
+	bMissileCameraHasHistory = false;
+	MissileCameraSmoothedLocation = FVector::ZeroVector;
+	MissileCameraSmoothedRotation = FRotator::ZeroRotator;
 }
 
 void UScenarioMenuSubsystem::FocusViewAtIndex(int32 ViewIndex)
@@ -1711,6 +2130,9 @@ void UScenarioMenuSubsystem::FocusCameraOnMissile(AMockMissileActor* Missile)
 
 	StopMissileCameraFollow();
 	MissileCameraTarget = Missile;
+	bMissileCameraHasHistory = false;
+	MissileCameraSmoothedLocation = FVector::ZeroVector;
+	MissileCameraSmoothedRotation = FRotator::ZeroRotator;
 	for (int32 ViewIdx = 0; ViewIdx < ViewEntries.Num(); ++ViewIdx)
 	{
 		const FViewEntry& Entry = ViewEntries[ViewIdx];
@@ -1720,11 +2142,58 @@ void UScenarioMenuSubsystem::FocusCameraOnMissile(AMockMissileActor* Missile)
 			break;
 		}
 	}
-	EnsureOverviewPawn(World);
-	UpdateMissileCamera();
-	World->GetTimerManager().SetTimer(MissileCameraTimerHandle, this, &UScenarioMenuSubsystem::UpdateMissileCamera, 0.016f, true);
+	// 初始化导弹相机：Pawn 位置跟随导弹，但玩家完全自由控制视角
+	ASpectatorPawn* Pawn = OverviewPawn.Get();
+	APlayerController* PC = World->GetFirstPlayerController();
+	
+	if (!Pawn || Pawn->IsPendingKillPending())
+	{
+		if (PC)
+		{
+			if (!PreviousPawn.IsValid())
+			{
+				PreviousPawn = PC->GetPawn();
+			}
+			
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+			Pawn = World->SpawnActor<ASpectatorPawn>(Missile->GetActorLocation(), FRotator::ZeroRotator, Params);
+			if (Pawn)
+			{
+				OverviewPawn = Pawn;
+				// 直接 Possess，不设置任何旋转，让玩家完全自由控制
+				PC->Possess(Pawn);
+			}
+		}
+	}
+	else if (PC && PC->GetPawn() != Pawn)
+	{
+		// 直接 Possess，不设置任何旋转，让玩家完全自由控制
+		PC->Possess(Pawn);
+	}
+	
+	if (Pawn && PC)
+	{
+		// 只在初始化时设置一次位置和初始旋转（相机向上平移，视角向下看）
+		if (!bMissileCameraControlInitialized)
+		{
+			const FVector MissileLocation = Missile->GetActorLocation();
+			// 相机位置：在导弹位置基础上向上平移（比如向上 200 单位）
+			const FVector CameraLocation = MissileLocation + FVector(0.f, 0.f, 200.f);
+			Pawn->SetActorLocation(CameraLocation);
+			
+			// 初始旋转：从上方位置向下看导弹（计算从相机位置看向导弹的旋转）
+			const FVector LookDirection = (MissileLocation - CameraLocation).GetSafeNormal();
+			const FRotator InitialRotation = LookDirection.Rotation();
+			PC->SetControlRotation(InitialRotation);
+			bMissileCameraControlInitialized = true;
+		}
+	}
+	
+	// 启动定时器：只更新位置（跟随导弹）和识别框，不更新旋转
 	EnsureMissileOverlay();
 	UpdateMissileOverlay();
+	World->GetTimerManager().SetTimer(MissileCameraTimerHandle, this, &UScenarioMenuSubsystem::UpdateMissileCamera, 0.016f, true);
 }
 
 void UScenarioMenuSubsystem::StopMissileCameraFollow()
@@ -1734,6 +2203,10 @@ void UScenarioMenuSubsystem::StopMissileCameraFollow()
 		World->GetTimerManager().ClearTimer(MissileCameraTimerHandle);
 	}
 	MissileCameraTarget = nullptr;
+	bMissileCameraHasHistory = false;
+	bMissileCameraControlInitialized = false;
+	MissileCameraSmoothedLocation = FVector::ZeroVector;
+	MissileCameraSmoothedRotation = FRotator::ZeroRotator;
 	RemoveMissileOverlay();
 }
 
@@ -1759,32 +2232,37 @@ void UScenarioMenuSubsystem::UpdateMissileCamera()
 		return;
 	}
 
-	EnsureOverviewPawn(World);
-	if (ASpectatorPawn* Pawn = OverviewPawn.Get())
+	ASpectatorPawn* Pawn = OverviewPawn.Get();
+	if (!Pawn)
 	{
-		const FVector MissileLocation = Missile->GetActorLocation();
-		FVector Forward = Missile->GetActorForwardVector();
-		if (!Forward.Normalize())
-		{
-			Forward = FVector::ForwardVector;
-		}
+		StopMissileCameraFollow();
+		return;
+	}
 
-		const FVector CameraLocation = MissileLocation - Forward * 400.f + FVector(0.f, 0.f, 150.f);
-		const FRotator CameraRotation = (MissileLocation - CameraLocation).Rotation();
-
-		Pawn->SetActorLocation(CameraLocation);
-		Pawn->SetActorRotation(CameraRotation);
-
-		if (APlayerController* PC = World->GetFirstPlayerController())
-		{
-			PC->SetControlRotation(CameraRotation);
-		}
+	// 只更新位置，让 Pawn 跟随导弹移动（相机在导弹上方，保持相对位置）
+	// 完全不更新旋转，让玩家完全自由控制视角
+	const FVector MissileLocation = Missile->GetActorLocation();
+	// 相机位置：在导弹位置基础上向上平移（保持相对高度）
+	const FVector DesiredCameraLocation = MissileLocation + FVector(0.f, 0.f, 200.f);
+	
+	// 使用平滑插值更新位置，避免突然跳跃
+	const float DeltaTime = FMath::Max(World->GetDeltaSeconds(), KINDA_SMALL_NUMBER);
+	const float LocationInterpSpeed = 10.f; // 较高的插值速度，确保紧密跟随
+	
+	if (!bMissileCameraHasHistory)
+	{
+		Pawn->SetActorLocation(DesiredCameraLocation);
+		bMissileCameraHasHistory = true;
 	}
 	else
 	{
-		StopMissileCameraFollow();
+		const FVector CurrentLocation = Pawn->GetActorLocation();
+		const FVector NewLocation = FMath::VInterpTo(CurrentLocation, DesiredCameraLocation, DeltaTime, LocationInterpSpeed);
+		// 使用 Teleport 模式避免触发碰撞事件，减少对玩家输入的干扰
+		Pawn->SetActorLocation(NewLocation, false, nullptr, ETeleportType::TeleportPhysics);
 	}
 
+	// 更新识别框
 	UpdateMissileOverlay();
 }
 
@@ -1914,20 +2392,51 @@ void UScenarioMenuSubsystem::UpdateMissileOverlay()
 	const float CosHalfAngle = FMath::Cos(FMath::DegreesToRadians(65.f));
 	const float MaxDistance = 50000.f;
 
+	// 获取导弹的目标（如果有）
+	AActor* MissileTarget = nullptr;
+	if (int32* IndexPtr = MissileRecordLookup.Find(Missile))
+	{
+		if (MissileTestRecords.IsValidIndex(*IndexPtr))
+		{
+			const FMissileTestRecord& Record = MissileTestRecords[*IndexPtr];
+			if (Record.TargetActor.IsValid())
+			{
+				MissileTarget = Record.TargetActor.Get();
+			}
+		}
+	}
+
 	TArray<FMissileOverlayTarget> OverlayTargets;
 
+	// 优先处理导弹的目标
+	TArray<TWeakObjectPtr<AActor>> SortedTargets;
+	if (MissileTarget && ActiveBlueUnits.Contains(MissileTarget))
+	{
+		SortedTargets.Add(MissileTarget);
+	}
 	for (const TWeakObjectPtr<AActor>& TargetPtr : ActiveBlueUnits)
+	{
+		if (TargetPtr.IsValid() && TargetPtr.Get() != MissileTarget)
+		{
+			SortedTargets.Add(TargetPtr);
+		}
+	}
+
+	for (const TWeakObjectPtr<AActor>& TargetPtr : SortedTargets)
 	{
 		if (!TargetPtr.IsValid())
 		{
 			continue;
 		}
 
+		AActor* Target = TargetPtr.Get();
 		FVector BoundsOrigin;
 		FVector BoundsExtent;
-		TargetPtr->GetActorBounds(true, BoundsOrigin, BoundsExtent);
+		Target->GetActorBounds(true, BoundsOrigin, BoundsExtent);
 
-		const FVector ToTarget = BoundsOrigin - CameraLocation;
+		// 使用目标中心点进行视线检测
+		const FVector TargetCenter = BoundsOrigin;
+		const FVector ToTarget = TargetCenter - CameraLocation;
 		const float Distance = ToTarget.Size();
 		if (Distance <= KINDA_SMALL_NUMBER || Distance > MaxDistance)
 		{
@@ -1940,56 +2449,284 @@ void UScenarioMenuSubsystem::UpdateMissileOverlay()
 			continue;
 		}
 
-		const FVector CornerOffsets[8] =
+		// 视线检测：检查目标是否被遮挡（使用多个关键点进行检测）
+		FCollisionQueryParams QueryParams;
+		QueryParams.AddIgnoredActor(Missile);
+		QueryParams.AddIgnoredActor(Target);
+		QueryParams.bTraceComplex = false;
+		QueryParams.bReturnPhysicalMaterial = false;
+
+		// 检测目标中心点和几个关键角点是否可见
+		bool bIsVisible = false;
+		const FVector TraceStart = CameraLocation;
+		
+		// 首先检测中心点
+		FHitResult HitResult;
+		if (!World->LineTraceSingleByChannel(HitResult, TraceStart, TargetCenter, ECC_Visibility, QueryParams) || HitResult.GetActor() == Target)
 		{
-			FVector( BoundsExtent.X,  BoundsExtent.Y,  BoundsExtent.Z),
-			FVector( BoundsExtent.X,  BoundsExtent.Y, -BoundsExtent.Z),
-			FVector( BoundsExtent.X, -BoundsExtent.Y,  BoundsExtent.Z),
-			FVector( BoundsExtent.X, -BoundsExtent.Y, -BoundsExtent.Z),
-			FVector(-BoundsExtent.X,  BoundsExtent.Y,  BoundsExtent.Z),
-			FVector(-BoundsExtent.X,  BoundsExtent.Y, -BoundsExtent.Z),
-			FVector(-BoundsExtent.X, -BoundsExtent.Y,  BoundsExtent.Z),
-			FVector(-BoundsExtent.X, -BoundsExtent.Y, -BoundsExtent.Z),
+			bIsVisible = true;
+		}
+		else
+		{
+			// 如果中心点被遮挡，检测几个关键角点
+			const FVector KeyPoints[4] = {
+				BoundsOrigin + FVector(BoundsExtent.X, 0.f, 0.f),  // 右
+				BoundsOrigin + FVector(-BoundsExtent.X, 0.f, 0.f), // 左
+				BoundsOrigin + FVector(0.f, 0.f, BoundsExtent.Z),  // 上
+				BoundsOrigin + FVector(0.f, 0.f, -BoundsExtent.Z)  // 下
+			};
+			
+			for (const FVector& KeyPoint : KeyPoints)
+			{
+				FHitResult KeyHitResult;
+				if (!World->LineTraceSingleByChannel(KeyHitResult, TraceStart, KeyPoint, ECC_Visibility, QueryParams) || KeyHitResult.GetActor() == Target)
+				{
+					bIsVisible = true;
+					break;
+				}
+			}
+		}
+		
+		// 如果目标完全被遮挡，则跳过
+		if (!bIsVisible)
+		{
+			continue;
+		}
+
+		// 使用3D标记：在目标上直接绘制明显的3D标记，避免屏幕投影误差
+		// 在目标中心上方绘制一个明显的标记
+		const FVector MarkerLocation = TargetCenter + FVector(0.f, 0.f, BoundsExtent.Z + 100.f);
+		
+		// 检查标记位置是否可见
+		FHitResult MarkerHitResult;
+		if (World->LineTraceSingleByChannel(MarkerHitResult, CameraLocation, MarkerLocation, ECC_Visibility, QueryParams))
+		{
+			if (MarkerHitResult.GetActor() != Target)
+			{
+				continue; // 标记位置被遮挡
+			}
+		}
+		
+		// 在3D世界中绘制明显的标记
+		const FColor MarkerColor = (Target == MissileTarget) ? FColor::Cyan : FColor(0, 217, 255); // 青色
+		const float MarkerSize = 80.f; // 更大的标记球体
+		const float LineThickness = 5.f; // 更粗的线
+		
+		// 绘制一个大的球体标记（实心）
+		DrawDebugSphere(World, MarkerLocation, MarkerSize, 16, MarkerColor, false, -1.f, 0, LineThickness);
+		
+		// 绘制一个内部的小球体，形成双层效果
+		DrawDebugSphere(World, MarkerLocation, MarkerSize * 0.6f, 16, MarkerColor, false, -1.f, 0, LineThickness * 0.8f);
+		
+		// 绘制一条粗线从目标中心到标记
+		DrawDebugLine(World, TargetCenter, MarkerLocation, MarkerColor, false, -1.f, 0, LineThickness);
+		
+		// 绘制目标包围盒轮廓（更粗的线）
+		DrawDebugBox(World, TargetCenter, BoundsExtent, MarkerColor, false, -1.f, 0, LineThickness);
+		
+		// 在目标四个角绘制小标记
+		const float CornerMarkerSize = 20.f;
+		const FVector Corners[4] = {
+			TargetCenter + FVector(BoundsExtent.X, BoundsExtent.Y, 0.f),
+			TargetCenter + FVector(BoundsExtent.X, -BoundsExtent.Y, 0.f),
+			TargetCenter + FVector(-BoundsExtent.X, BoundsExtent.Y, 0.f),
+			TargetCenter + FVector(-BoundsExtent.X, -BoundsExtent.Y, 0.f)
 		};
-
-		FBox2D ScreenBox(ForceInit);
-		bool bAnyProjected = false;
-
-		for (const FVector& Offset : CornerOffsets)
+		for (const FVector& Corner : Corners)
 		{
-			const FVector WorldPoint = BoundsOrigin + Offset;
-			const FVector FromCamera = WorldPoint - CameraLocation;
-			if (FVector::DotProduct(FromCamera.GetSafeNormal(), NormalizedForward) < 0.05f)
-			{
-				continue;
-			}
-
-			FVector2D ScreenPos;
-			if (PC->ProjectWorldLocationToScreen(WorldPoint, ScreenPos, false))
-			{
-				bAnyProjected = true;
-				ScreenBox += ScreenPos;
-			}
+			DrawDebugSphere(World, Corner, CornerMarkerSize, 8, MarkerColor, false, -1.f, 0, 2.f);
 		}
-
-		if (!bAnyProjected || !ScreenBox.bIsValid)
-		{
-			continue;
-		}
-
-		const FVector2D BoxSize = ScreenBox.GetSize();
-		if (BoxSize.GetMin() < 4.f)
-		{
-			continue;
-		}
-
-		FMissileOverlayTarget OverlayEntry;
-		OverlayEntry.ScreenPosition = ScreenBox.GetCenter();
-		OverlayEntry.BoxHalfSize = BoxSize * 0.5f;
-		OverlayEntry.Color = FLinearColor(0.f, 0.85f, 1.f, 0.9f);
-		OverlayTargets.Add(OverlayEntry);
 	}
 
 	MissileOverlayWidget->SetTargets(OverlayTargets);
 }
 
+void UScenarioMenuSubsystem::RecordMissileLaunch(AMockMissileActor* Missile, AActor* Target, const FVector& LaunchLocation, bool bFromAutoFire)
+{
+	if (!Missile)
+	{
+		return;
+	}
+
+	FMissileTestRecord Record;
+	Record.LaunchTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : FPlatformTime::Seconds();
+	Record.bAutoFire = bFromAutoFire;
+	Record.TargetActor = Target;
+	Record.TargetName = Target ? Target->GetName() : TEXT("未指定");
+	Record.LaunchLocation = LaunchLocation;
+	Record.TargetLocation = Target ? Target->GetActorLocation() : FVector::ZeroVector;
+	Record.InitialDistance = Target ? FVector::Dist(LaunchLocation, Record.TargetLocation) : 0.f;
+
+	const int32 Index = MissileTestRecords.Add(Record);
+	MissileRecordLookup.Add(Missile, Index);
+}
+
+void UScenarioMenuSubsystem::UpdateMissileRecordOnImpact(AMockMissileActor* Missile, AActor* HitActor, int32 DestroyedCount, const FString& HitActorName)
+{
+	if (!Missile)
+	{
+		return;
+	}
+
+	const double CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : FPlatformTime::Seconds();
+
+	if (int32* IndexPtr = MissileRecordLookup.Find(Missile))
+	{
+		if (MissileTestRecords.IsValidIndex(*IndexPtr))
+		{
+			FMissileTestRecord& Record = MissileTestRecords[*IndexPtr];
+			Record.ImpactTimeSeconds = CurrentTime;
+			Record.bImpactRegistered = true;
+			Record.DestroyedCount = DestroyedCount;
+			Record.bExpired = false;
+			
+			// 使用目标名称比较来判断直接命中，因为目标可能已经被销毁导致指针失效
+			const FString ActualHitActorName = !HitActorName.IsEmpty() ? HitActorName : (HitActor ? HitActor->GetName() : FString());
+			Record.bDirectHit = !ActualHitActorName.IsEmpty() && !Record.TargetName.IsEmpty() && ActualHitActorName == Record.TargetName;
+			
+			const bool bTargetPointerValid = Record.TargetActor.IsValid();
+			Record.bTargetDestroyed = (Record.bDirectHit || (DestroyedCount > 0 && !bTargetPointerValid));
+		}
+		MissileRecordLookup.Remove(Missile);
+	}
+}
+
+void UScenarioMenuSubsystem::UpdateMissileRecordOnExpired(AMockMissileActor* Missile)
+{
+	if (!Missile)
+	{
+		return;
+	}
+
+	const double CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : FPlatformTime::Seconds();
+
+	if (int32* IndexPtr = MissileRecordLookup.Find(Missile))
+	{
+		if (MissileTestRecords.IsValidIndex(*IndexPtr))
+		{
+			FMissileTestRecord& Record = MissileTestRecords[*IndexPtr];
+			Record.ImpactTimeSeconds = CurrentTime;
+			Record.bImpactRegistered = false;
+			Record.bExpired = true;
+			Record.DestroyedCount = 0;
+			Record.bDirectHit = false;
+			Record.bTargetDestroyed = Record.TargetActor.IsValid() ? !Record.TargetActor.IsValid() : false;
+		}
+		MissileRecordLookup.Remove(Missile);
+	}
+}
+
+void UScenarioMenuSubsystem::ResetMissileTestSession()
+{
+	MissileTestRecords.Reset();
+	MissileRecordLookup.Reset();
+	LastMissileSummary = FMissileTestSummary();
+	TestSessionStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : FPlatformTime::Seconds();
+}
+
+void UScenarioMenuSubsystem::ClearAutoFire()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(AutoFireTimerHandle);
+	}
+	AutoFireRemaining = 0;
+}
+
+void UScenarioMenuSubsystem::CompleteMissileTest()
+{
+	// 标记仍在飞行的导弹为过期，避免缺失数据
+	if (MissileRecordLookup.Num() > 0)
+	{
+		TArray<TWeakObjectPtr<AMockMissileActor>> PendingMissiles;
+		MissileRecordLookup.GetKeys(PendingMissiles);
+		for (const TWeakObjectPtr<AMockMissileActor>& MissilePtr : PendingMissiles)
+		{
+			if (MissilePtr.IsValid())
+			{
+				UpdateMissileRecordOnExpired(MissilePtr.Get());
+			}
+		}
+		MissileRecordLookup.Reset();
+	}
+
+	ClearAutoFire();
+
+	const double CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : FPlatformTime::Seconds();
+
+	LastMissileSummary = FMissileTestSummary();
+	LastMissileSummary.SessionDuration = FMath::Max(0.f, static_cast<float>(CurrentTime - TestSessionStartTime));
+
+	if (MissileTestRecords.Num() == 0)
+	{
+		return;
+	}
+
+	LastMissileSummary.TotalShots = MissileTestRecords.Num();
+	double TotalFlightTime = 0.0;
+	int32 FlightSamples = 0;
+	double TotalDistance = 0.0;
+	double TotalDestroyed = 0.0;
+
+	double LastAutoLaunchTime = -1.0;
+	double AutoIntervalAccumulator = 0.0;
+	int32 AutoIntervals = 0;
+
+	int32 MissCount = 0;
+
+	for (const FMissileTestRecord& Record : MissileTestRecords)
+	{
+		if (Record.bAutoFire)
+		{
+			++LastMissileSummary.AutoShots;
+			if (LastAutoLaunchTime >= 0.0)
+			{
+				AutoIntervalAccumulator += Record.LaunchTimeSeconds - LastAutoLaunchTime;
+				++AutoIntervals;
+			}
+			LastAutoLaunchTime = Record.LaunchTimeSeconds;
+		}
+		else
+		{
+			++LastMissileSummary.ManualShots;
+		}
+
+		TotalDistance += Record.InitialDistance;
+
+		const float FlightTime = Record.GetFlightDuration();
+		if (FlightTime > 0.f)
+		{
+			TotalFlightTime += FlightTime;
+			++FlightSamples;
+		}
+
+		if (Record.DestroyedCount > 0)
+		{
+			++LastMissileSummary.Hits;
+			if (Record.bDirectHit)
+			{
+				++LastMissileSummary.DirectHits;
+			}
+			else
+			{
+				++LastMissileSummary.AoEHits;
+			}
+			TotalDestroyed += Record.DestroyedCount;
+		}
+		else
+		{
+			++MissCount;
+		}
+	}
+
+	LastMissileSummary.HitRate = LastMissileSummary.TotalShots > 0 ? (static_cast<float>(LastMissileSummary.Hits) * 100.f / LastMissileSummary.TotalShots) : 0.f;
+	LastMissileSummary.DirectHitRate = LastMissileSummary.Hits > 0 ? (static_cast<float>(LastMissileSummary.DirectHits) * 100.f / LastMissileSummary.Hits) : 0.f;
+	LastMissileSummary.AverageLaunchDistance = LastMissileSummary.TotalShots > 0 ? static_cast<float>(TotalDistance / LastMissileSummary.TotalShots) : 0.f;
+	LastMissileSummary.AverageFlightTime = FlightSamples > 0 ? static_cast<float>(TotalFlightTime / FlightSamples) : 0.f;
+	LastMissileSummary.AverageDestroyedPerHit = LastMissileSummary.Hits > 0 ? static_cast<float>(TotalDestroyed / LastMissileSummary.Hits) : 0.f;
+	LastMissileSummary.AverageAutoLaunchInterval = AutoIntervals > 0 ? static_cast<float>(AutoIntervalAccumulator / AutoIntervals) : 0.f;
+	LastMissileSummary.Misses = MissCount;
+
+	UE_LOG(LogTemp, Log, TEXT("Missile test completed: Shots=%d Hits=%d HitRate=%.1f%%"),
+		LastMissileSummary.TotalShots, LastMissileSummary.Hits, LastMissileSummary.HitRate);
+}
