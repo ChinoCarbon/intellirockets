@@ -422,7 +422,9 @@ TSharedRef<SWidget> SEnvironmentBuilder::BuildMapSelector()
 void SEnvironmentBuilder::OnWeatherChanged(int32 Index)
 {
 	SelectedWeatherIndex = Index;
-	UE_LOG(LogTemp, Log, TEXT("Weather changed to index: %d"), Index);
+	// 手动改变天气时，清除预设选择
+	SelectedPresetIndex = -1;
+	UE_LOG(LogTemp, Log, TEXT("Weather changed to index: %d, preset cleared"), Index);
     Construct(FArguments());
 }
 
@@ -646,40 +648,42 @@ void SEnvironmentBuilder::OnCountermeasureToggled(int32 Index)
     {
         SelectedCountermeasures.Add(Index);
     }
-    UE_LOG(LogTemp, Log, TEXT("Countermeasure toggled: %d -> %s"), Index, SelectedCountermeasures.Contains(Index) ? TEXT("ON") : TEXT("OFF"));
+    // 手动改变反制方式时，清除预设选择
+    SelectedPresetIndex = -1;
+    UE_LOG(LogTemp, Log, TEXT("Countermeasure toggled: %d -> %s, preset cleared"), Index, SelectedCountermeasures.Contains(Index) ? TEXT("ON") : TEXT("OFF"));
     Construct(FArguments());
 }
 
 void SEnvironmentBuilder::OnApplyPreset(int32 PresetIndex)
 {
     SelectedPresetIndex = PresetIndex;
-    // 清空/设置对应选项
+    // 反转后的预设配置：1级最简单，5级最复杂
     switch (PresetIndex)
     {
-        case 1: // 预设1：海杂波，反制方式全选
+        case 1: // 复杂度1级：晴天，无反制（最简单）
+            SelectedWeatherIndex = 0; // 晴天
+            SelectedCountermeasures.Empty();
+            break;
+        case 2: // 复杂度2级：晴天，通信干扰（简单）
+            SelectedWeatherIndex = 0; // 晴天
+            SelectedCountermeasures.Empty(); SelectedCountermeasures.Add(1);
+            break;
+        case 3: // 复杂度3级：气动热效应，无反制（中等）
+            SelectedWeatherIndex = 2; // 气动热效应
+            SelectedCountermeasures.Empty();
+            break;
+        case 4: // 复杂度4级：气动热效应，通信干扰（较复杂）
+            SelectedWeatherIndex = 2; // 气动热效应
+            SelectedCountermeasures.Empty(); SelectedCountermeasures.Add(1);
+            break;
+        case 5: // 复杂度5级：海杂波，全反制（最复杂）
             SelectedWeatherIndex = 1; // 海杂波
             SelectedCountermeasures = {0,1,2};
-            break;
-        case 2: // 预设2：晴天，通信干扰
-            SelectedWeatherIndex = 0; // 晴天
-            SelectedCountermeasures.Empty(); SelectedCountermeasures.Add(1);
-            break;
-        case 3: // 预设3：气动热效应
-            SelectedWeatherIndex = 2; // 气动热效应
-            // 不改变反制方式
-            break;
-        case 4: // 预设4：通信干扰 晴天
-            SelectedWeatherIndex = 0; // 晴天
-            SelectedCountermeasures.Empty(); SelectedCountermeasures.Add(1);
-            break;
-        case 5: // 预设5：晴天
-            SelectedWeatherIndex = 0; // 晴天
-            // 不改变反制方式
             break;
         default:
             break;
     }
-    UE_LOG(LogTemp, Log, TEXT("Preset %d applied. Weather=%d, Countermeasures=%d"), PresetIndex, SelectedWeatherIndex, SelectedCountermeasures.Num());
+    UE_LOG(LogTemp, Log, TEXT("Preset %d (Complexity Level %d) applied. Weather=%d, Countermeasures=%d"), PresetIndex, PresetIndex, SelectedWeatherIndex, SelectedCountermeasures.Num());
     Construct(FArguments());
 }
 

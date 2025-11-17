@@ -98,6 +98,78 @@ void UScenarioMenuSubsystem::OnWorldReady(UWorld* World, const UWorld::Initializ
 	}
 }
 
+// ---------------- Perception reporting APIs ----------------
+void UScenarioMenuSubsystem::Perception_ReportDetection(bool bCorrect)
+{
+	if (bCorrect) ++PerceptionStats.NumDetectionsCorrect;
+}
+void UScenarioMenuSubsystem::Perception_ReportFalsePositive()
+{
+	++PerceptionStats.NumFalsePositives;
+}
+void UScenarioMenuSubsystem::Perception_ReportFalseNegative()
+{
+	++PerceptionStats.NumFalseNegatives;
+}
+void UScenarioMenuSubsystem::Perception_ReportRecognitionSample(double Seconds)
+{
+	PerceptionStats.TotalRecognitionTimeSeconds += FMath::Max(0.0, Seconds);
+	++PerceptionStats.NumRecognitionSamples;
+}
+void UScenarioMenuSubsystem::Perception_ReportLightCondition(bool bCorrect)
+{
+	++PerceptionStats.SamplesLightTotal;
+	if (bCorrect) ++PerceptionStats.SamplesLightCorrect;
+}
+void UScenarioMenuSubsystem::Perception_ReportWeatherCondition(bool bCorrect)
+{
+	++PerceptionStats.SamplesWeatherTotal;
+	if (bCorrect) ++PerceptionStats.SamplesWeatherCorrect;
+}
+void UScenarioMenuSubsystem::Perception_ReportSimultaneousTracks(int32 CurrentTracks)
+{
+	PerceptionStats.MaxSimultaneousTracksObserved = FMath::Max(PerceptionStats.MaxSimultaneousTracksObserved, CurrentTracks);
+}
+void UScenarioMenuSubsystem::Perception_ReportTrackingError(double Meters)
+{
+	PerceptionStats.TotalTrackingErrorMeters += FMath::Max(0.0, Meters);
+	++PerceptionStats.NumTrackingErrorSamples;
+}
+void UScenarioMenuSubsystem::Perception_ReportJammingLight(bool bCorrect)
+{
+	++PerceptionStats.SamplesJamLightTotal;
+	if (bCorrect) ++PerceptionStats.SamplesJamLightCorrect;
+}
+void UScenarioMenuSubsystem::Perception_ReportJammingMedium(bool bCorrect)
+{
+	++PerceptionStats.SamplesJamMediumTotal;
+	if (bCorrect) ++PerceptionStats.SamplesJamMediumCorrect;
+}
+void UScenarioMenuSubsystem::Perception_ReportInterferenceDetected(bool bCorrect)
+{
+	++PerceptionStats.SamplesInterferenceDetectedTotal;
+	if (bCorrect) ++PerceptionStats.SamplesInterferenceDetectedCorrect;
+}
+void UScenarioMenuSubsystem::Perception_ReportFrequencyAdjust(bool bSuccess)
+{
+	++PerceptionStats.SamplesFrequencyAdjustTotal;
+	if (bSuccess) ++PerceptionStats.SamplesFrequencyAdjustSuccess;
+}
+void UScenarioMenuSubsystem::Perception_ReportRecoveryTime(double Seconds)
+{
+	PerceptionStats.TotalRecoveryTimeSeconds += FMath::Max(0.0, Seconds);
+	++PerceptionStats.NumRecoverySamples;
+}
+void UScenarioMenuSubsystem::Perception_ReportKeypartRecognition(bool bCorrect)
+{
+	++PerceptionStats.SamplesKeypartTotal;
+	if (bCorrect) ++PerceptionStats.SamplesKeypartCorrect;
+}
+void UScenarioMenuSubsystem::Perception_ReportHeatTrackingError(double Meters)
+{
+	PerceptionStats.TotalHeatTrackErrorMeters += FMath::Max(0.0, Meters);
+	++PerceptionStats.NumHeatTrackSamples;
+}
 void UScenarioMenuSubsystem::Show(UWorld* World)
 {
 	if (!GEngine || !GEngine->GameViewport)
@@ -122,6 +194,7 @@ void UScenarioMenuSubsystem::Show(UWorld* World)
 
 	SAssignNew(Screen, SScenarioScreen)
 		.StepIndex(StepIndex)
+		.InitialTabIndex(ReturnTabIndex)
 		.OwnerSubsystem(this)
 		.OnPrevStep(FOnPrevStep::CreateUObject(this, &UScenarioMenuSubsystem::Prev))
 		.OnNextStep(FOnNextStep::CreateUObject(this, &UScenarioMenuSubsystem::Next))
@@ -168,6 +241,13 @@ void UScenarioMenuSubsystem::Next()
 void UScenarioMenuSubsystem::SaveAll()
 {
 	UE_LOG(LogTemp, Log, TEXT("SaveAll clicked"));
+
+	// 将界面中的 Step1 表格数据持久化到 Saved/Config 下
+	if (Screen.IsValid())
+	{
+		Screen->SavePersistentTables();
+		UE_LOG(LogTemp, Log, TEXT("SaveAll: persistent tables saved."));
+	}
 }
 
 void UScenarioMenuSubsystem::BackToMainMenu()
@@ -186,8 +266,17 @@ void UScenarioMenuSubsystem::BeginScenarioTest()
 		return;
 	}
 
+	// 记录当前 Tab，测试完成后回到对应 Tab 的 Step5
+	ReturnTabIndex = Screen->GetActiveTabIndex();
+
 	FScenarioTestConfig Config;
 	Screen->CollectScenarioConfig(Config);
+
+	UE_LOG(LogTemp, Log, TEXT("BeginScenarioTest: MapIndex=%d MapLevelName=%s TestMethodIndex=%d EnvInterfIdx=%d"),
+		Config.MapIndex,
+		Config.MapLevelName.IsNone() ? TEXT("None") : *Config.MapLevelName.ToString(),
+		Config.TestMethodIndex,
+		Config.EnvironmentInterferenceIndex);
 
 	PendingScenarioConfig = Config;
 	bHasPendingScenarioConfig = true;
@@ -290,6 +379,92 @@ void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluati
 			Result.RemarkText = Remark;
 		};
 
+		// 9.1.1 感知算法性能指标
+		if (IndicatorId.StartsWith(TEXT("9.1.1")))
+		{
+			const FPerceptionRuntimeStats& P = PerceptionStats;
+			if (IndicatorId == TEXT("9.1.1.1"))
+			{
+				const int32 Den = P.NumDetectionsCorrect + P.NumFalsePositives;
+				const float FalsePositiveRate = Den > 0 ? (float)P.NumFalsePositives / (float)Den * 100.f : 0.f;
+				EvaluateThreshold(FalsePositiveRate, 0.5f, false, TEXT("%"), TEXT("误报率不超过0.5%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.1b"))
+			{
+				const int32 Den = P.NumDetectionsCorrect + P.NumFalseNegatives;
+				const float FalseNegativeRate = Den > 0 ? (float)P.NumFalseNegatives / (float)Den * 100.f : 0.f;
+				EvaluateThreshold(FalseNegativeRate, 1.0f, false, TEXT("%"), TEXT("漏报率不超过1%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.2"))
+			{
+				const float AvgRec = P.NumRecognitionSamples > 0 ? (float)(P.TotalRecognitionTimeSeconds / P.NumRecognitionSamples) : 0.f;
+				EvaluateThreshold(AvgRec, 0.2f, false, TEXT(" s"), TEXT("识别时间小于0.2秒"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.3a"))
+			{
+				const float Rate = P.SamplesLightTotal > 0 ? (float)P.SamplesLightCorrect / (float)P.SamplesLightTotal * 100.f : 0.f;
+				EvaluateThreshold(Rate, 90.f, true, TEXT("%"), TEXT("不同光照条件识别率不低于90%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.3b"))
+			{
+				const float Rate = P.SamplesWeatherTotal > 0 ? (float)P.SamplesWeatherCorrect / (float)P.SamplesWeatherTotal * 100.f : 0.f;
+				EvaluateThreshold(Rate, 85.f, true, TEXT("%"), TEXT("不同天气条件识别率不低于85%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.4a"))
+			{
+				const float Count = (float)P.MaxSimultaneousTracksObserved;
+				EvaluateThreshold(Count, 5.f, true, TEXT(""), TEXT("同时跟踪目标数量至少5个"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.4b"))
+			{
+				const float Err = P.NumTrackingErrorSamples > 0 ? (float)(P.TotalTrackingErrorMeters / P.NumTrackingErrorSamples) : 0.f;
+				EvaluateThreshold(Err, 1.0f, false, TEXT(" m"), TEXT("平均跟踪误差不超过1米"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.5a"))
+			{
+				const float Rate = P.SamplesJamLightTotal > 0 ? (float)P.SamplesJamLightCorrect / (float)P.SamplesJamLightTotal * 100.f : 0.f;
+				EvaluateThreshold(Rate, 90.f, true, TEXT("%"), TEXT("轻度干扰下识别率不低于90%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.5b"))
+			{
+				const float Rate = P.SamplesJamMediumTotal > 0 ? (float)P.SamplesJamMediumCorrect / (float)P.SamplesJamMediumTotal * 100.f : 0.f;
+				EvaluateThreshold(Rate, 80.f, true, TEXT("%"), TEXT("中度干扰下识别率不低于80%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.6a"))
+			{
+				const float Rate = P.SamplesInterferenceDetectedTotal > 0 ? (float)P.SamplesInterferenceDetectedCorrect / (float)P.SamplesInterferenceDetectedTotal * 100.f : 0.f;
+				EvaluateThreshold(Rate, 95.f, true, TEXT("%"), TEXT("干扰信号检测准确率不低于95%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.6b"))
+			{
+				const float Rate = P.SamplesFrequencyAdjustTotal > 0 ? (float)P.SamplesFrequencyAdjustSuccess / (float)P.SamplesFrequencyAdjustTotal * 100.f : 0.f;
+				EvaluateThreshold(Rate, 98.f, true, TEXT("%"), TEXT("频率调整成功率不低于98%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.7"))
+			{
+				const float Avg = P.NumRecoverySamples > 0 ? (float)(P.TotalRecoveryTimeSeconds / P.NumRecoverySamples) : 0.f;
+				EvaluateThreshold(Avg, 1.0f, false, TEXT(" s"), TEXT("从干扰状态恢复正常工作的时间小于1秒"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.8"))
+			{
+				const float Rate = P.SamplesKeypartTotal > 0 ? (float)P.SamplesKeypartCorrect / (float)P.SamplesKeypartTotal * 100.f : 0.f;
+				EvaluateThreshold(Rate, 90.f, true, TEXT("%"), TEXT("关键部位识别准确率不低于90%"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.9"))
+			{
+				const float Err = P.NumHeatTrackSamples > 0 ? (float)(P.TotalHeatTrackErrorMeters / P.NumHeatTrackSamples) : 0.f;
+				EvaluateThreshold(Err, 0.5f, false, TEXT(" m"), TEXT("热源跟踪误差不超过0.5米"));
+			}
+			else if (IndicatorId == TEXT("9.1.1.10"))
+			{
+				const float Baseline = 0.f;
+				const float Improved = P.SamplesKeypartTotal > 0 ? (float)P.SamplesKeypartCorrect / (float)P.SamplesKeypartTotal * 100.f : 0.f;
+				const float Lift = FMath::Max(0.f, Improved - Baseline);
+				EvaluateThreshold(Lift, 20.f, true, TEXT("%"), TEXT("抑制噪声与干扰后的识别率提升（需结合基线统计）"));
+			}
+			OutResults.Add(Result);
+			continue;
+		}
 		if (IndicatorId == TEXT("3.4.1.1"))
 		{
 			const float Value = Summary.AverageAutoLaunchInterval > 0.f ? Summary.AverageAutoLaunchInterval : Summary.AverageFlightTime;
@@ -2019,12 +2194,19 @@ void UScenarioMenuSubsystem::OnInputFinishMissileTest()
 		if (UWorld* World = GetWorld())
 		{
 			Show(World);
+			// 确保回到发起测试的 Tab
+			if (Screen.IsValid())
+			{
+				Screen->SetActiveTabIndex(ReturnTabIndex);
+			}
 		}
 	}
 
 	StepIndex = 4;
 	if (Screen.IsValid())
 	{
+		// 如果界面仍然存在，直接切到对应 Tab 再跳到 Step5
+		Screen->SetActiveTabIndex(ReturnTabIndex);
 		Screen->SetStepIndex(StepIndex);
 	}
 }

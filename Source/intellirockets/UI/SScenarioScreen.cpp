@@ -7,6 +7,7 @@
 #include "UI/Styles/ScenarioStyle.h"
 #include "Systems/ScenarioMenuSubsystem.h"
 #include "Systems/ScenarioTestMetrics.h"
+#include "Misc/PackageName.h"
 
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -22,6 +23,10 @@
 void SScenarioScreen::Construct(const FArguments& InArgs)
 {
 	StepIndex = InArgs._StepIndex;
+	if (InArgs._InitialTabIndex >= 0)
+	{
+		ActiveTabIndex = InArgs._InitialTabIndex;
+	}
 	OwnerSubsystemWeak = InArgs._OwnerSubsystem;
 	OnPrevStep = InArgs._OnPrevStep;
 	OnNextStep = InArgs._OnNextStep;
@@ -67,10 +72,48 @@ void SScenarioScreen::Construct(const FArguments& InArgs)
     }
     else
     {
-        DecisionContentBox->AddSlot().FillHeight(1.f)[ BuildPerceptionContent() ];
+        DecisionContentBox->AddSlot().AutoHeight()[ BuildPerceptionContent() ];
     }
 }
 
+void SScenarioScreen::SetActiveTabIndex(int32 InTabIndex)
+{
+	ActiveTabIndex = FMath::Clamp(InTabIndex, 0, 1);
+	// 触发内容重建以反映 Tab 切换
+	if (DecisionContentBox.IsValid())
+	{
+		DecisionContentBox->ClearChildren();
+		if (ActiveTabIndex == 1)
+		{
+			DecisionContentBox->AddSlot().AutoHeight()[ BuildDecisionContent() ];
+		}
+		else
+		{
+			DecisionContentBox->AddSlot().AutoHeight()[ BuildPerceptionContent() ];
+		}
+	}
+}
+
+void SScenarioScreen::SavePersistentTables() const
+{
+	// 四个表格分别持久化（如果已创建）
+	if (MainTablePerception.IsValid())
+	{
+		MainTablePerception->SavePersistent();
+	}
+	if (PrototypeTablePerception.IsValid())
+	{
+		PrototypeTablePerception->SavePersistent();
+	}
+	if (MainTableDecision.IsValid())
+	{
+		MainTableDecision->SavePersistent();
+	}
+	if (PrototypeTableDecision.IsValid())
+	{
+		PrototypeTableDecision->SavePersistent();
+	}
+}
 void SScenarioScreen::SetStepIndex(int32 InStepIndex)
 {
     StepIndex = FMath::Clamp(InStepIndex, 0, 4);
@@ -80,7 +123,14 @@ void SScenarioScreen::SetStepIndex(int32 InStepIndex)
     }
     if (!DecisionContentBox.IsValid()) return;
     DecisionContentBox->ClearChildren();
-    DecisionContentBox->AddSlot().AutoHeight()[ BuildDecisionContent() ];
+    if (ActiveTabIndex == 1)
+    {
+        DecisionContentBox->AddSlot().AutoHeight()[ BuildDecisionContent() ];
+    }
+    else
+    {
+        DecisionContentBox->AddSlot().AutoHeight()[ BuildPerceptionContent() ];
+    }
 }
 
 FReply SScenarioScreen::OnPrevClicked()
@@ -116,10 +166,12 @@ FReply SScenarioScreen::OnTab1Clicked()
 		// 重新构建整个界面以更新 tab 状态
 		Construct(FArguments()
 			.StepIndex(StepIndex)
+			.OwnerSubsystem(OwnerSubsystemWeak.Get())
 			.OnPrevStep(OnPrevStep)
 			.OnNextStep(OnNextStep)
 			.OnSaveAll(OnSaveAll)
-			.OnBackToMainMenu(OnBackToMainMenu));
+			.OnBackToMainMenu(OnBackToMainMenu)
+			.OnStartTest(OnStartTest));
 	}
 	return FReply::Handled();
 }
@@ -133,10 +185,12 @@ FReply SScenarioScreen::OnTab2Clicked()
 		// 重新构建整个界面以更新 tab 状态
 		Construct(FArguments()
 			.StepIndex(StepIndex)
+			.OwnerSubsystem(OwnerSubsystemWeak.Get())
 			.OnPrevStep(OnPrevStep)
 			.OnNextStep(OnNextStep)
 			.OnSaveAll(OnSaveAll)
-			.OnBackToMainMenu(OnBackToMainMenu));
+			.OnBackToMainMenu(OnBackToMainMenu)
+			.OnStartTest(OnStartTest));
 	}
 	return FReply::Handled();
 }
@@ -252,24 +306,64 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 		]
 		+ SVerticalBox::Slot().FillHeight(0.5f).Padding(0.f, 8.f, 0.f, 8.f)
 		[
-            (MainTable.IsValid()
-                ? StaticCastSharedRef<SWidget>(MainTable.ToSharedRef())
-                : StaticCastSharedRef<SWidget>(
-                    SAssignNew(MainTable, SScenarioMainTable)
-                    .OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Row")); }))
-                    .OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Row")); }))
-                  )
+            (
+				[&]() -> TSharedRef<SWidget>
+				{
+					const bool bPerception = (ActiveTabIndex == 0);
+					if (bPerception)
+					{
+						return (MainTablePerception.IsValid()
+							? MainTablePerception.ToSharedRef()
+							: StaticCastSharedRef<SWidget>(
+								SAssignNew(MainTablePerception, SScenarioMainTable)
+								.DataPresetIndex(1) // 感知数据
+								.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Row")); }))
+								.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Row")); }))
+							));
+					}
+					else
+					{
+						return (MainTableDecision.IsValid()
+							? MainTableDecision.ToSharedRef()
+							: StaticCastSharedRef<SWidget>(
+								SAssignNew(MainTableDecision, SScenarioMainTable)
+								.DataPresetIndex(0) // 决策数据
+								.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Row")); }))
+								.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Row")); }))
+							));
+					}
+				}()
             )
 		]
 		+ SVerticalBox::Slot().FillHeight(0.5f).Padding(0.f, 8.f, 0.f, 8.f)
 		[
-            (PrototypeTable.IsValid()
-                ? StaticCastSharedRef<SWidget>(PrototypeTable.ToSharedRef())
-                : StaticCastSharedRef<SWidget>(
-                    SAssignNew(PrototypeTable, SScenarioPrototypeTable)
-                    .OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Prototype Row")); }))
-                    .OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Prototype Row")); }))
-                  )
+            (
+				[&]() -> TSharedRef<SWidget>
+				{
+					const bool bPerception = (ActiveTabIndex == 0);
+					if (bPerception)
+					{
+						return (PrototypeTablePerception.IsValid()
+							? PrototypeTablePerception.ToSharedRef()
+							: StaticCastSharedRef<SWidget>(
+								SAssignNew(PrototypeTablePerception, SScenarioPrototypeTable)
+								.DataPresetIndex(1) // 感知数据
+								.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Prototype Row")); }))
+								.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Prototype Row")); }))
+							));
+					}
+					else
+					{
+						return (PrototypeTableDecision.IsValid()
+							? PrototypeTableDecision.ToSharedRef()
+							: StaticCastSharedRef<SWidget>(
+								SAssignNew(PrototypeTableDecision, SScenarioPrototypeTable)
+								.DataPresetIndex(0) // 决策数据
+								.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Prototype Row")); }))
+								.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Prototype Row")); }))
+							));
+					}
+				}()
             )
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
@@ -296,7 +390,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 						if (NewState == ECheckBoxState::Checked) { TestMethodIndex = 0; UE_LOG(LogTemp, Log, TEXT("TestMethod: 正交测试")); }
 					})
 					[
-						SNew(STextBlock).Text(FText::FromString(TEXT("正交测试"))).Font(ScenarioStyle::Font(12))
+						SNew(STextBlock).Text(FText::FromString(TEXT("算法级"))).Font(ScenarioStyle::Font(12))
 					]
 				]
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(20.f, 0.f)
@@ -308,7 +402,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 						if (NewState == ECheckBoxState::Checked) { TestMethodIndex = 1; UE_LOG(LogTemp, Log, TEXT("TestMethod: 单独测试")); }
 					})
 					[
-						SNew(STextBlock).Text(FText::FromString(TEXT("独立任务测试"))).Font(ScenarioStyle::Font(12))
+						SNew(STextBlock).Text(FText::FromString(TEXT("系统级"))).Font(ScenarioStyle::Font(12))
 					]
 				]
 			]
@@ -384,7 +478,29 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep2()
 		]
 		+ SVerticalBox::Slot().FillHeight(1.f)
 		[
-            (IndicatorSelector.IsValid() ? IndicatorSelector.ToSharedRef() : SAssignNew(IndicatorSelector, SIndicatorSelector))
+            (
+				[&]() -> TSharedRef<SWidget>
+				{
+					const bool bPerception = (ActiveTabIndex == 0);
+					if (IndicatorSelector.IsValid())
+					{
+						return IndicatorSelector.ToSharedRef();
+					}
+					else
+					{
+						if (bPerception)
+						{
+							return SAssignNew(IndicatorSelector, SIndicatorSelector)
+								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/PerceptionIndicators.json"));
+						}
+						else
+						{
+							return SAssignNew(IndicatorSelector, SIndicatorSelector)
+								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json"));
+						}
+					}
+				}()
+			)
 		];
 }
 
@@ -467,8 +583,13 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		IndicatorCount = IndicatorDetails.Num();
 	}
 
-	// Step1: 测评方法
-	const FString MethodText = (Snapshot.TestMethodIndex == 0) ? TEXT("正交测试") : TEXT("单独测试");
+	// Step1: 多层级通用测试方法 / 典型场景测试方法
+	const FString MultiLevelText = (Snapshot.TestMethodIndex == 0) ? TEXT("算法级") : TEXT("系统级");
+	const FString SceneMethodText = (Snapshot.EnvironmentInterferenceIndex == 0)
+		? TEXT("无干扰场景测试方法")
+		: TEXT("有干扰场景测试方法");
+
+	// 多层级通用测试方法
 	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 	[
 		SNew(SBorder)
@@ -480,14 +601,40 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 			+ SHorizontalBox::Slot().AutoWidth().Padding(0.f,0.f,8.f,0.f).VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
-				.Text(FText::FromString(TEXT("测评方法")))
+				.Text(FText::FromString(TEXT("多层级通用测试方法")))
 				.ColorAndOpacity(ScenarioStyle::Text)
 				.Font(ScenarioStyle::BoldFont(13))
 			]
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
-				.Text(FText::FromString(MethodText))
+				.Text(FText::FromString(MultiLevelText))
+				.ColorAndOpacity(ScenarioStyle::TextDim)
+				.Font(ScenarioStyle::Font(12))
+			]
+		]
+	];
+
+	// 典型场景测试方法
+	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	[
+		SNew(SBorder)
+		.Padding(12.f)
+		.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+		.BorderBackgroundColor(ScenarioStyle::Panel)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.f,0.f,8.f,0.f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("典型场景测试方法")))
+				.ColorAndOpacity(ScenarioStyle::Text)
+				.Font(ScenarioStyle::BoldFont(13))
+			]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(SceneMethodText))
 				.ColorAndOpacity(ScenarioStyle::TextDim)
 				.Font(ScenarioStyle::Font(12))
 			]
@@ -677,7 +824,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
 		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("启用蓝方自定义部署：%s"), Snapshot.bBlueCustomDeployment ? TEXT("是") : TEXT("否")))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
 		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
-		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("预设：%s"), Snapshot.PresetIndex >= 0 ? *FString::Printf(TEXT("预设%d"), Snapshot.PresetIndex) : TEXT("未使用预设")))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("复杂度等级：%s"), Snapshot.PresetIndex >= 1 && Snapshot.PresetIndex <= 5 ? *FString::Printf(TEXT("%d级"), Snapshot.PresetIndex) : TEXT("未使用预设")))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
 
 		Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 		[ MakeCard(TEXT("环境参数（来自 Step3）"), EnvironmentCard) ];
@@ -726,13 +873,16 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 
 	OutConfig.SelectedTableRowIndices.Reset();
 	OutConfig.SelectedTableRowTexts.Reset();
-	if (MainTable.IsValid())
 	{
-		MainTable->GetSelectedRowIndices(OutConfig.SelectedTableRowIndices);
+		const bool bPerception = (ActiveTabIndex == 0);
+		TSharedPtr<SScenarioMainTable> Table = bPerception ? MainTablePerception : MainTableDecision;
+		if (Table.IsValid())
+	{
+		Table->GetSelectedRowIndices(OutConfig.SelectedTableRowIndices);
 		for (int32 idx : OutConfig.SelectedTableRowIndices)
 		{
 			TArray<FText> Cols;
-			MainTable->GetRowTexts(idx, Cols);
+			Table->GetRowTexts(idx, Cols);
 			TArray<FString> Row;
 			for (const FText& Txt : Cols)
 			{
@@ -741,16 +891,20 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 			OutConfig.SelectedTableRowTexts.Add(Row);
 		}
 	}
+	}
 
 	OutConfig.SelectedPrototypeRowIndices.Reset();
 	OutConfig.SelectedPrototypeRowTexts.Reset();
-	if (PrototypeTable.IsValid())
 	{
-		PrototypeTable->GetSelectedRowIndices(OutConfig.SelectedPrototypeRowIndices);
+		const bool bPerception = (ActiveTabIndex == 0);
+		TSharedPtr<SScenarioPrototypeTable> Table = bPerception ? PrototypeTablePerception : PrototypeTableDecision;
+		if (Table.IsValid())
+	{
+		Table->GetSelectedRowIndices(OutConfig.SelectedPrototypeRowIndices);
 		for (int32 idx : OutConfig.SelectedPrototypeRowIndices)
 		{
 			TArray<FText> Cols;
-			PrototypeTable->GetRowTexts(idx, Cols);
+			Table->GetRowTexts(idx, Cols);
 			TArray<FString> Row;
 			for (const FText& Txt : Cols)
 			{
@@ -758,6 +912,7 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 			}
 			OutConfig.SelectedPrototypeRowTexts.Add(Row);
 		}
+	}
 	}
 
 	OutConfig.SelectedIndicatorIds.Reset();
@@ -794,12 +949,26 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 	};
 	if (OutConfig.MapIndex >= 0 && OutConfig.MapIndex < UE_ARRAY_COUNT(MapLevelPaths))
 	{
-		OutConfig.MapLevelName = FName(MapLevelPaths[OutConfig.MapIndex]);
+		// 校验关卡包是否存在，不存在则置空，避免 OpenLevel 失败无反馈
+		const FString LevelRef = MapLevelPaths[OutConfig.MapIndex];
+		bool bExists = false;
+		{
+			// 允许传递 /Game/Path/Level 的地图名；检查对应包是否存在
+			// 这里只能做轻量校验：若编辑器环境无法确认，则继续沿用默认行为
+			bExists = FPackageName::DoesPackageExist(LevelRef);
+		}
+		OutConfig.MapLevelName = bExists ? FName(*LevelRef) : NAME_None;
 	}
 	else
 	{
 		OutConfig.MapLevelName = NAME_None;
 	}
+
+	UE_LOG(LogTemp, Log, TEXT("CollectScenarioConfig: ActiveTabIndex=%d MapIndex=%d -> MapLevelName=%s (exists=%s)"),
+		ActiveTabIndex,
+		OutConfig.MapIndex,
+		OutConfig.MapLevelName.IsNone() ? TEXT("None") : *OutConfig.MapLevelName.ToString(),
+		(OutConfig.MapLevelName.IsNone() ? TEXT("No") : TEXT("Yes")));
 
 	return true;
 }
@@ -1159,30 +1328,9 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep5()
 
 TSharedRef<SWidget> SScenarioScreen::BuildPerceptionContent()
 {
-	// 智能感知算法测评的内容：居中、较大、带边框包裹的空面板
-	UE_LOG(LogTemp, Log, TEXT("BuildPerceptionContent called - returning centered bordered panel"));
-	return SNew(SOverlay)
-		+ SOverlay::Slot()
-		[
-			SNew(SBox)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			[
-				SNew(SBorder)
-				.Padding(1.f)
-				.BorderImage(FCoreStyle::Get().GetBrush("Border"))
-				[
-					SNew(SBorder)
-					.Padding(30.f)
-					.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
-					.BorderBackgroundColor(ScenarioStyle::Panel)
-					[
-						SNew(SSpacer)
-						.Size(FVector2D(800.f, 420.f))
-					]
-				]
-			]
-		];
+	// 与决策 Tab 完全一致的面板与按钮，确保样式/间距/按钮完全相同
+	UE_LOG(LogTemp, Log, TEXT("BuildPerceptionContent called - reuse BuildDecisionContent"));
+	return BuildDecisionContent();
 }
 
 

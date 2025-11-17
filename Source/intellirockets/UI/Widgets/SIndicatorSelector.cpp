@@ -43,8 +43,12 @@ void SIndicatorSelector::GetSelectedIndicatorDetails(TArray<FString>& OutIds, TA
 
 void SIndicatorSelector::Construct(const FArguments& InArgs)
 {
-	// 加载指标数据
-	FString ConfigPath = FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json");
+	// 加载指标数据（允许外部传入路径）
+	FString ConfigPath = InArgs._IndicatorsJsonPath;
+	if (ConfigPath.IsEmpty())
+	{
+		ConfigPath = FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json");
+	}
 	if (!FIndicatorDataLoader::LoadFromFile(ConfigPath, IndicatorData))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to load indicator data from: %s"), *ConfigPath);
@@ -89,15 +93,9 @@ void SIndicatorSelector::Construct(const FArguments& InArgs)
 
 TSharedRef<SWidget> SIndicatorSelector::BuildCategoryList()
 {
-	TSharedRef<SScrollBox> ScrollBox = SNew(SScrollBox);
+	SAssignNew(CategoryListScrollBox, SScrollBox);
 
-	for (int32 CatIndex = 0; CatIndex < IndicatorData.Categories.Num(); ++CatIndex)
-	{
-		ScrollBox->AddSlot()
-		[
-			MakeCategoryItem(IndicatorData.Categories[CatIndex], CatIndex)
-		];
-	}
+	RefreshCategoryList();
 
 	return SNew(SBorder)
 		.Padding(8.f)
@@ -114,7 +112,7 @@ TSharedRef<SWidget> SIndicatorSelector::BuildCategoryList()
 			]
 			+ SVerticalBox::Slot().FillHeight(1.f)
 			[
-				ScrollBox
+				CategoryListScrollBox.ToSharedRef()
 			]
 		];
 }
@@ -133,10 +131,8 @@ TSharedRef<SWidget> SIndicatorSelector::BuildIndicatorList()
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
 			[
-				SNew(STextBlock)
-				.Text(SelectedSubCategoryIndex >= 0 && SelectedCategoryIndex >= 0 && SelectedCategoryIndex < IndicatorData.Categories.Num() ?
-					FText::FromString(IndicatorData.Categories[SelectedCategoryIndex].SubCategories[SelectedSubCategoryIndex].Name) :
-					FText::FromString(TEXT("请选择分类")))
+				SAssignNew(IndicatorTitleText, STextBlock)
+				.Text(FText::FromString(TEXT("请选择分类")))
 				.ColorAndOpacity(ScenarioStyle::Text)
 				.Font(ScenarioStyle::Font(14))
 			]
@@ -176,6 +172,21 @@ void SIndicatorSelector::OnCategorySelected(int32 CategoryIndex, int32 SubCatego
 {
 	SelectedCategoryIndex = CategoryIndex;
 	SelectedSubCategoryIndex = SubCategoryIndex;
+
+	// 更新左侧高亮 & 中间标题
+	RefreshCategoryList();
+	if (IndicatorTitleText.IsValid())
+	{
+		if (SelectedCategoryIndex >= 0 && SelectedCategoryIndex < IndicatorData.Categories.Num() &&
+			SelectedSubCategoryIndex >= 0 && SelectedSubCategoryIndex < IndicatorData.Categories[SelectedCategoryIndex].SubCategories.Num())
+		{
+			IndicatorTitleText->SetText(FText::FromString(IndicatorData.Categories[SelectedCategoryIndex].SubCategories[SelectedSubCategoryIndex].Name));
+		}
+		else
+		{
+			IndicatorTitleText->SetText(FText::FromString(TEXT("请选择分类")));
+		}
+	}
 	RefreshIndicatorList();
 }
 
@@ -219,6 +230,19 @@ void SIndicatorSelector::RefreshIndicatorList()
 				MakeIndicatorItem(Indicator)
 			];
 		}
+	}
+}
+
+void SIndicatorSelector::RefreshCategoryList()
+{
+	if (!CategoryListScrollBox.IsValid()) return;
+	CategoryListScrollBox->ClearChildren();
+	for (int32 CatIndex = 0; CatIndex < IndicatorData.Categories.Num(); ++CatIndex)
+	{
+		CategoryListScrollBox->AddSlot()
+		[
+			MakeCategoryItem(IndicatorData.Categories[CatIndex], CatIndex)
+		];
 	}
 }
 

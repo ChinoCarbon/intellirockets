@@ -1,0 +1,103 @@
+{
+  "categories": [
+    {
+      "name": "感知算法指标",
+      "subCategories": [
+        {
+          "name": "性能指标",
+          "indicators": [
+            { "id": "9.1.1.1", "name": "性能性-目标检测精度（Object Detection Accuracy）-误报率", "unit": "%", "targetValue": 0.5, "higherIsBetter": false, "description": "误报率不超过0.5%" },
+            { "id": "9.1.1.1b", "name": "性能性-目标检测精度（Object Detection Accuracy）-漏报率", "unit": "%", "targetValue": 1.0, "higherIsBetter": false, "description": "漏报率不超过1%" },
+            { "id": "9.1.1.2", "name": "性能性-目标识别速度（Target Recognition Speed）", "unit": "s", "targetValue": 0.2, "higherIsBetter": false, "description": "识别时间小于0.2秒" },
+            { "id": "9.1.1.3a", "name": "鲁棒性-环境适应性（Environmental Adaptability）-不同光照下识别率", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "不同光照条件识别率不低于90%" },
+            { "id": "9.1.1.3b", "name": "鲁棒性-环境适应性（Environmental Adaptability）-不同天气下识别率", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "不同天气条件识别率不低于85%" },
+            { "id": "9.1.1.4a", "name": "性能性-多目标跟踪精度（Multi-target Tracking Accuracy）-同时跟踪数量", "unit": "count", "targetValue": 5, "higherIsBetter": true, "description": "同时跟踪目标数量至少5个" },
+            { "id": "9.1.1.4b", "name": "性能性-多目标跟踪精度（Multi-target Tracking Accuracy）-跟踪误差", "unit": "m", "targetValue": 1.0, "higherIsBetter": false, "description": "跟踪误差不超过1米" },
+            { "id": "9.1.1.5a", "name": "鲁棒性-抗干扰精度（Jamming Resistance Accuracy）-轻度干扰识别率", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "轻度干扰下识别率不低于90%" },
+            { "id": "9.1.1.5b", "name": "鲁棒性-抗干扰精度（Jamming Resistance Accuracy）-中度干扰识别率", "unit": "%", "targetValue": 80.0, "higherIsBetter": true, "description": "中度干扰下识别率不低于80%" },
+            { "id": "9.1.1.6a", "name": "功能性-频谱监控精度（Spectrum Monitoring Accuracy）-干扰检测准确率", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "干扰信号检测准确率不低于95%" },
+            { "id": "9.1.1.6b", "name": "功能性-频谱监控精度（Spectrum Monitoring Accuracy）-频率调整成功率", "unit": "%", "targetValue": 98.0, "higherIsBetter": true, "description": "频率调整成功率不低于98%" },
+            { "id": "9.1.1.7", "name": "性能性-信号恢复速度（Signal Recovery Speed）", "unit": "s", "targetValue": 1.0, "higherIsBetter": false, "description": "恢复时间小于1秒" },
+            { "id": "9.1.1.8", "name": "可解释性-关键部位识别准确率（Critical Part Recognition Accuracy）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "识别准确率不低于90%" },
+            { "id": "9.1.1.9", "name": "性能性-热源跟踪精度（Heat Source Tracking Accuracy）", "unit": "m", "targetValue": 0.5, "higherIsBetter": false, "description": "热源跟踪误差不超过0.5米" },
+            { "id": "9.1.1.10", "name": "功能性-背景抑制性能（Background Suppression Performance）-识别率提升", "unit": "%", "targetValue": 20.0, "higherIsBetter": true, "description": "抑制噪声后识别率提升至少20%" }
+          ]
+        },
+        {
+          "name": "智能指标",
+          "indicators": [
+            { "id": "9.1.2.1", "name": "智能性-威胁等级评估（Threat Assessment Intelligence）", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "威胁等级评估准确率不低于85%" },
+            { "id": "9.1.2.2", "name": "智能性-敌方策略识别能力（Enemy Strategy Recognition Intelligence）", "unit": "%", "targetValue": 75.0, "higherIsBetter": true, "description": "敌方策略识别准确率不低于75%" },
+            { "id": "9.1.2.3a", "name": "未来可扩展性-感知自适应性（Adaptive Perception）-响应时间", "unit": "s", "targetValue": 0.5, "higherIsBetter": false, "description": "自适应调整响应时间小于0.5秒" },
+            { "id": "9.1.2.3b", "name": "未来可扩展性-感知自适应性（Adaptive Perception）-成功率", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "自适应调整成功率不低于85%" },
+            { "id": "9.1.2.4", "name": "功能性-遮蔽物识别智能（Occlusion Detection Intelligence）", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "遮蔽物识别准确率不低于85%" },
+            { "id": "9.1.2.5", "name": "智能性-自适应频率选择（Adaptive Frequency Selection）", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "最佳频率选择成功率不低于95%" },
+            { "id": "9.1.2.6", "name": "未来可扩展性-干扰模式识别智能（Jamming Pattern Recognition Intelligence）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "干扰模式识别准确率不低于90%" },
+            { "id": "9.1.2.7", "name": "智能性-红外伪装识别智能（Infrared Camouflage Detection Intelligence）", "unit": "%", "targetValue": 80.0, "higherIsBetter": true, "description": "红外伪装识别准确率不低于80%" },
+            { "id": "9.1.2.8", "name": "智能性-动态目标识别智能（Dynamic Object Recognition Intelligence）", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "动态目标识别准确率不低于85%" }
+          ]
+        },
+        {
+          "name": "效能指标",
+          "indicators": [
+            { "id": "9.1.3.1a", "name": "效能性-误报率（False Positive Rate）", "unit": "%", "targetValue": 0.5, "higherIsBetter": false, "description": "误报率不超过0.5%" },
+            { "id": "9.1.3.1b", "name": "效能性-漏报率（False Negative Rate）", "unit": "%", "targetValue": 1.0, "higherIsBetter": false, "description": "漏报率不超过1%" },
+            { "id": "9.1.3.2a", "name": "效能性-系统资源消耗-计算资源占用（Resource Consumption - Compute）", "unit": "%", "targetValue": 30.0, "higherIsBetter": false, "description": "计算资源占用不超过30%" },
+            { "id": "9.1.3.2b", "name": "效能性-系统资源消耗-能量消耗（Resource Consumption - Power）", "unit": "W", "targetValue": 1.0, "higherIsBetter": false, "description": "能量消耗不超过1瓦" },
+            { "id": "9.1.3.3", "name": "效能性-系统响应时间（System Response Time）", "unit": "s", "targetValue": 0.2, "higherIsBetter": false, "description": "从数据输入到感知结果输出的时间小于0.2秒" },
+            { "id": "9.1.3.4", "name": "效能性-目标跟踪持续时间（Tracking Duration）", "unit": "min", "targetValue": 10.0, "higherIsBetter": true, "description": "持续跟踪时间至少10分钟" },
+            { "id": "9.1.3.5", "name": "安全性-抗干扰成功率（Jamming Resistance Success Rate）", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "成功规避或对抗电磁干扰的比率不低于95%" },
+            { "id": "9.1.3.6a", "name": "可靠性-系统恢复效能-时间（System Recovery Time）", "unit": "s", "targetValue": 1.0, "higherIsBetter": false, "description": "从干扰状态恢复正常工作的时间小于1秒" },
+            { "id": "9.1.3.6b", "name": "可靠性-系统恢复效能-效率（System Recovery Efficiency）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "系统恢复效率不低于90%" },
+            { "id": "9.1.3.7", "name": "效能性-红外图像处理时延（Infrared Image Processing Latency）", "unit": "s", "targetValue": 0.5, "higherIsBetter": false, "description": "从红外图像获取到关键部位识别完成的时间小于0.5秒" },
+            { "id": "9.1.3.8", "name": "效能性-识别效能（Recognition Efficiency）", "unit": "%", "targetValue": 80.0, "higherIsBetter": true, "description": "识别过程中所使用的计算资源与时间效率不低于80%" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "感知分系统指标",
+      "subCategories": [
+        {
+          "name": "性能指标",
+          "indicators": [
+            { "id": "9.2.1.1a", "name": "可解释性-多模态数据融合精度-一致性（Multimodal Data Fusion Consistency）", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "融合后数据的一致性不低于95%" },
+            { "id": "9.2.1.1b", "name": "可解释性-多模态数据融合精度-精度（Multimodal Data Fusion Accuracy）", "unit": "%", "targetValue": 98.0, "higherIsBetter": true, "description": "融合后数据的精度不低于98%" },
+            { "id": "9.2.1.2a", "name": "性能性-传感器对齐度-时间（Sensor Alignment Precision - Time）", "unit": "s", "targetValue": 0.1, "higherIsBetter": false, "description": "时间对齐精度不超过0.1秒" },
+            { "id": "9.2.1.2b", "name": "性能性-传感器对齐度-空间（Sensor Alignment Precision - Space）", "unit": "m", "targetValue": 0.5, "higherIsBetter": false, "description": "空间对齐精度不超过0.5米" },
+            { "id": "9.2.1.3", "name": "性能性-实时感知覆盖率（Real-time Perception Coverage）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "实时覆盖范围不低于90%" },
+            { "id": "9.2.1.4", "name": "可靠性-冗余感知能力（Perception Redundancy Capability）", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "在部分传感器失效时仍保持感知准确率不低于85%" },
+            { "id": "9.2.1.5", "name": "功能性-多传感器融合抗干扰能力（Multisensor Fusion Jamming Resistance Capability）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "电磁干扰下保持感知准确率不低于90%" },
+            { "id": "9.2.1.6", "name": "性能性-红外与可见光融合精度（Infrared-Visible Light Fusion Accuracy）", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "融合后的目标识别精度不低于95%" }
+          ]
+        },
+        {
+          "name": "智能指标",
+          "indicators": [
+            { "id": "9.2.2.1a", "name": "智能性-干扰识别准确率（Interference Detection Intelligence）", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "干扰识别准确率不低于95%" },
+            { "id": "9.2.2.1b", "name": "智能性-干扰规避成功率（Interference Avoidance Intelligence）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "干扰规避成功率不低于90%" },
+            { "id": "9.2.2.2", "name": "智能性-资源感知智能（Resource Perception Intelligence）", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "关键资源识别准确率不低于85%" },
+            { "id": "9.2.2.3a", "name": "安全性-传感器健康管理-故障预警准确率", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "故障预警准确率不低于90%" },
+            { "id": "9.2.2.3b", "name": "安全性-传感器健康管理-健康监测准确率", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "健康监测准确率不低于95%" },
+            { "id": "9.2.2.4a", "name": "智能性-传感器自适应调度-响应时间", "unit": "s", "targetValue": 0.5, "higherIsBetter": false, "description": "调度响应时间小于0.5秒" },
+            { "id": "9.2.2.4b", "name": "智能性-传感器自适应调度-成功率", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "调度成功率不低于95%" },
+            { "id": "9.2.2.5", "name": "未来可扩展性-多模态感知智能（Multimodal Perception Intelligence）", "unit": "%", "targetValue": 98.0, "higherIsBetter": true, "description": "多模态数据融合后的目标识别准确率不低于98%" }
+          ]
+        },
+        {
+          "name": "效能指标",
+          "indicators": [
+            { "id": "9.2.3.1", "name": "效能性-感知数据处理时延（Perception Data Processing Latency）", "unit": "s", "targetValue": 0.5, "higherIsBetter": false, "description": "平均延迟时间小于0.5秒" },
+            { "id": "9.2.3.2", "name": "效能性-感知数据吞吐量（Data Throughput）", "unit": "MB/s", "targetValue": 100.0, "higherIsBetter": true, "description": "每秒处理的数据量不低于100 MB/s" },
+            { "id": "9.2.3.3", "name": "效能性-电源消耗（Power Consumption）", "unit": "W", "targetValue": 10.0, "higherIsBetter": false, "description": "能耗表现不超过10瓦" },
+            { "id": "9.2.3.4", "name": "效能性-感知准确率（Perception Accuracy）", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "总感知准确率不低于95%" },
+            { "id": "9.2.3.5", "name": "鲁棒性-干扰条件下感知覆盖率（Perception Coverage Under Jamming）", "unit": "%", "targetValue": 80.0, "higherIsBetter": true, "description": "电磁干扰环境下有效覆盖比例不低于80%" },
+            { "id": "9.2.3.6", "name": "效能性-数据融合处理时延（Data Fusion Processing Latency）", "unit": "s", "targetValue": 0.5, "higherIsBetter": false, "description": "传感器数据融合并输出结果的时间延迟小于0.5秒" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+

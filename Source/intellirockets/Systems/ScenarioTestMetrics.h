@@ -57,3 +57,50 @@ struct FIndicatorEvaluationResult
 	bool bPass = false;
 };
 
+// 轻量级：感知算法-运行期统计（用于 9.1.1 指标计算）
+struct FPerceptionRuntimeStats
+{
+	// 目标检测
+	int32 NumDetectionsCorrect = 0;
+	int32 NumFalsePositives = 0;
+	int32 NumFalseNegatives = 0;
+
+	// 识别速度（累计识别时长，计数）
+	double TotalRecognitionTimeSeconds = 0.0;
+	int32 NumRecognitionSamples = 0;
+
+	// 环境适应性（不同条件下的识别率样本）
+	int32 SamplesLightTotal = 0;
+	int32 SamplesLightCorrect = 0;
+	int32 SamplesWeatherTotal = 0;
+	int32 SamplesWeatherCorrect = 0;
+
+	// 多目标跟踪
+	int32 MaxSimultaneousTracksObserved = 0;
+	double TotalTrackingErrorMeters = 0.0;
+	int32 NumTrackingErrorSamples = 0;
+
+	// 抗干扰精度
+	int32 SamplesJamLightTotal = 0;
+	int32 SamplesJamLightCorrect = 0;
+	int32 SamplesJamMediumTotal = 0;
+	int32 SamplesJamMediumCorrect = 0;
+
+	// 频谱监控
+	int32 SamplesInterferenceDetectedTotal = 0;
+	int32 SamplesInterferenceDetectedCorrect = 0;
+	int32 SamplesFrequencyAdjustTotal = 0;
+	int32 SamplesFrequencyAdjustSuccess = 0;
+
+	// 信号恢复
+	double TotalRecoveryTimeSeconds = 0.0;
+	int32 NumRecoverySamples = 0;
+
+	// 关键部位识别
+	int32 SamplesKeypartTotal = 0;
+	int32 SamplesKeypartCorrect = 0;
+
+	// 热源跟踪
+	double TotalHeatTrackErrorMeters = 0.0;
+	int32 NumHeatTrackSamples = 0;
+};

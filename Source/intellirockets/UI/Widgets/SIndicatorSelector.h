@@ -11,6 +11,7 @@ class SIndicatorSelector : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SIndicatorSelector) {}
+		SLATE_ARGUMENT(FString, IndicatorsJsonPath) // 可选：自定义指标文件路径
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -38,6 +39,7 @@ private:
 private:
 	void RefreshIndicatorList();
 	void RefreshSelectedList();
+	void RefreshCategoryList();
 
 private:
 	FIndicatorData IndicatorData;
@@ -45,7 +47,9 @@ private:
 	int32 SelectedSubCategoryIndex = -1;
 	TSet<FString> SelectedIndicatorIds;  // 已选择的指标ID集合
 
+	TSharedPtr<SScrollBox> CategoryListScrollBox;
 	TSharedPtr<SScrollBox> IndicatorListScrollBox;
 	TSharedPtr<SScrollBox> SelectedListScrollBox;
 	TSharedPtr<STextBlock> SelectedCountText;  // 已选指标数量文本
+	TSharedPtr<STextBlock> IndicatorTitleText; // 中间列表标题
 };

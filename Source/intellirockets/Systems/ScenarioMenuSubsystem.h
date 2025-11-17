@@ -99,10 +99,32 @@ public:
 	const FScenarioTestConfig& GetActiveScenarioConfig() const { return ActiveScenarioConfig; }
 	void GetIndicatorEvaluations(TArray<FIndicatorEvaluationResult>& OutResults) const { BuildIndicatorEvaluations(OutResults); }
 
+	// 感知算法统计上报（供蓝图/外部系统调用）
+	void Perception_ReportDetection(bool bCorrect);
+	void Perception_ReportFalsePositive();
+	void Perception_ReportFalseNegative();
+	void Perception_ReportRecognitionSample(double Seconds);
+	void Perception_ReportLightCondition(bool bCorrect);
+	void Perception_ReportWeatherCondition(bool bCorrect);
+	void Perception_ReportSimultaneousTracks(int32 CurrentTracks);
+	void Perception_ReportTrackingError(double Meters);
+	void Perception_ReportJammingLight(bool bCorrect);
+	void Perception_ReportJammingMedium(bool bCorrect);
+	void Perception_ReportInterferenceDetected(bool bCorrect);
+	void Perception_ReportFrequencyAdjust(bool bSuccess);
+	void Perception_ReportRecoveryTime(double Seconds);
+	void Perception_ReportKeypartRecognition(bool bCorrect);
+	void Perception_ReportHeatTrackingError(double Meters);
+
 public:
 	FOnScenarioTestRequested OnScenarioTestRequested;
 
 private:
+	// 测试完成后返回界面时，回到的 Tab（0: 感知, 1: 决策）
+	int32 ReturnTabIndex = 1;
+
+	FPerceptionRuntimeStats PerceptionStats;
+
 	TSharedPtr<SScenarioScreen> Screen;
 	FDelegateHandle WorldHandle;
 	int32 StepIndex = 0;

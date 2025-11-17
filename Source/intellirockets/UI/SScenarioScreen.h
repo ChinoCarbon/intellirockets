@@ -43,6 +43,7 @@ class SScenarioScreen : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SScenarioScreen){}
 		SLATE_ARGUMENT(int32, StepIndex)
+		SLATE_ARGUMENT(int32, InitialTabIndex)
 		SLATE_ARGUMENT(class UScenarioMenuSubsystem*, OwnerSubsystem)
 		SLATE_EVENT(FOnPrevStep, OnPrevStep)
 		SLATE_EVENT(FOnNextStep, OnNextStep)
@@ -54,6 +55,11 @@ public:
 	void Construct(const FArguments& InArgs);
 	void SetStepIndex(int32 InStepIndex);
 	bool CollectScenarioConfig(FScenarioTestConfig& OutConfig) const;
+	int32 GetActiveTabIndex() const { return ActiveTabIndex; }
+	void SetActiveTabIndex(int32 InTabIndex);
+
+	// 持久化 Step1 表格数据（在 SaveAll 时调用）
+	void SavePersistentTables() const;
 
 private:
 	FReply OnPrevClicked();
@@ -78,8 +84,11 @@ private:
 	int32 TestMethodIndex = 0; // 0: 正交测试, 1: 单独测试
 	int32 EnvironmentInterferenceIndex = 0; // 0: 无干扰场景测试方法, 1: 有干扰场景测试方法
 	TSharedPtr<SScenarioBreadcrumb> Breadcrumb;
-	TSharedPtr<SScenarioMainTable> MainTable; // Step1
-	TSharedPtr<SScenarioPrototypeTable> PrototypeTable; // Step1
+	// Tab2（决策）与 Tab1（感知）分别维护自己的表实例，避免数据相互影响
+	TSharedPtr<SScenarioMainTable> MainTableDecision; // Step1 - 决策
+	TSharedPtr<SScenarioPrototypeTable> PrototypeTableDecision; // Step1 - 决策
+	TSharedPtr<SScenarioMainTable> MainTablePerception; // Step1 - 感知
+	TSharedPtr<SScenarioPrototypeTable> PrototypeTablePerception; // Step1 - 感知
 	TSharedPtr<class SIndicatorSelector> IndicatorSelector; // Step2
 	TSharedPtr<class SEnvironmentBuilder> EnvironmentBuilder; // Step3
 	TSharedPtr<class SVerticalBox> DecisionContentBox; // content container for step area

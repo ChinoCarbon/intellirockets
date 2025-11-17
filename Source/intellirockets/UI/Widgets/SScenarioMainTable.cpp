@@ -16,6 +16,18 @@
 #include "Widgets/SWindow.h"
 #include "GenericPlatform/GenericWindow.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "HAL/FileManager.h"
 
 namespace
 {
@@ -61,14 +73,32 @@ void SScenarioMainTable::Construct(const FArguments& InArgs)
 {
 	OnRowEdit = InArgs._OnRowEdit;
 	OnRowDelete = InArgs._OnRowDelete;
+	PresetIndex = InArgs._DataPresetIndex;
 
-	AlgorithmRows = {
-		{ TEXT("空地联合打击"), TEXT("压制敌方防空节点，确保突击通道"), TEXT("自适应航迹规划"), TEXT("高原沙漠"), TEXT("卫星+雷达复合侦察"), TEXT("/Configs/Strike/AdaptiveRoute.json") },
-		{ TEXT("防空拦截"), TEXT("中远程导弹拦截入侵目标"), TEXT("多传感器融合决策"), TEXT("沿海城市"), TEXT("雷达+光电联合数据"), TEXT("/Configs/AirDefense/FusionDecision.json") },
-		{ TEXT("海上巡航"), TEXT("护航编队并侦察异常信号"), TEXT("航迹重规划"), TEXT("近海气象多变"), TEXT("声呐+北斗定位"), TEXT("/Configs/Naval/PatrolPlanner.json") }
-	};
+	// 优先从持久化文件加载；如果失败则回退到默认预设
+	if (!LoadPersistent())
+	{
+		if (PresetIndex == 1)
+		{
+			// 感知：更偏向检测/识别/跟踪任务
+			AlgorithmRows = {
+				{ TEXT("目标检测"), TEXT("复杂地面环境下的目标检测与识别"), TEXT("多模态检测融合"), TEXT("森林-薄雾"), TEXT("红外+可见光融合"), TEXT("/Configs/Perception/ObjectDetect.json") },
+				{ TEXT("多目标跟踪"), TEXT("中距离多目标持续跟踪与遮挡判别"), TEXT("多目标数据关联"), TEXT("城郊-弱光"), TEXT("雷达+光电联合"), TEXT("/Configs/Perception/MOT.json") },
+				{ TEXT("抗干扰识别"), TEXT("电磁干扰下的稳定识别与恢复"), TEXT("频谱分析与自适应选择"), TEXT("沿海-电磁复杂"), TEXT("频谱+雷达"), TEXT("/Configs/Perception/JammingResist.json") }
+			};
+		}
+		else
+		{
+			// 决策：偏任务规划与协同
+			AlgorithmRows = {
+				{ TEXT("空地联合打击"), TEXT("压制敌方防空节点，确保突击通道"), TEXT("自适应航迹规划"), TEXT("高原沙漠"), TEXT("卫星+雷达复合侦察"), TEXT("/Configs/Strike/AdaptiveRoute.json") },
+				{ TEXT("防空拦截"), TEXT("中远程导弹拦截入侵目标"), TEXT("多传感器融合决策"), TEXT("沿海城市"), TEXT("雷达+光电联合数据"), TEXT("/Configs/AirDefense/FusionDecision.json") },
+				{ TEXT("海上巡航"), TEXT("护航编队并侦察异常信号"), TEXT("航迹重规划"), TEXT("近海气象多变"), TEXT("声呐+北斗定位"), TEXT("/Configs/Naval/PatrolPlanner.json") }
+			};
+		}
 
-	SelectedRows.Init(false, AlgorithmRows.Num());
+		SelectedRows.Init(false, AlgorithmRows.Num());
+	}
 
 	ChildSlot
 	[
@@ -170,6 +200,106 @@ TSharedRef<SWidget> SScenarioMainTable::BuildRows()
 	SAssignNew(RowScrollBox, SScrollBox);
 	RefreshRows();
 	return RowScrollBox.ToSharedRef();
+}
+
+void SScenarioMainTable::SavePersistent() const
+{
+	// 根据预设选择不同的保存文件（感知 / 决策）
+	const FString FileName = (PresetIndex == 1)
+		? TEXT("ScenarioAlgorithms_Perception.json")
+		: TEXT("ScenarioAlgorithms_Decision.json");
+
+	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
+	IFileManager::Get().MakeDirectory(*Dir, true);
+	const FString FullPath = FPaths::Combine(Dir, FileName);
+
+	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> RowsJson;
+
+	for (int32 i = 0; i < AlgorithmRows.Num(); ++i)
+	{
+		const FAlgorithmEntry& Entry = AlgorithmRows[i];
+		TSharedRef<FJsonObject> RowObj = MakeShared<FJsonObject>();
+		RowObj->SetStringField(TEXT("Mission"), Entry.Mission);
+		RowObj->SetStringField(TEXT("TaskDetail"), Entry.TaskDetail);
+		RowObj->SetStringField(TEXT("AlgorithmName"), Entry.AlgorithmName);
+		RowObj->SetStringField(TEXT("TrainingEnvironment"), Entry.TrainingEnvironment);
+		RowObj->SetStringField(TEXT("TrainingData"), Entry.TrainingData);
+		RowObj->SetStringField(TEXT("ConfigPath"), Entry.ConfigPath);
+		const bool bSelected = SelectedRows.IsValidIndex(i) && SelectedRows[i];
+		RowObj->SetBoolField(TEXT("Selected"), bSelected);
+
+		RowsJson.Add(MakeShared<FJsonValueObject>(RowObj));
+	}
+
+	Root->SetArrayField(TEXT("Rows"), RowsJson);
+
+	FString Output;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+	if (FJsonSerializer::Serialize(Root, Writer))
+	{
+		FFileHelper::SaveStringToFile(Output, *FullPath);
+	}
+}
+
+bool SScenarioMainTable::LoadPersistent()
+{
+	const FString FileName = (PresetIndex == 1)
+		? TEXT("ScenarioAlgorithms_Perception.json")
+		: TEXT("ScenarioAlgorithms_Decision.json");
+
+	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
+	const FString FullPath = FPaths::Combine(Dir, FileName);
+
+	if (!FPaths::FileExists(FullPath))
+	{
+		return false;
+	}
+
+	FString JsonStr;
+	if (!FFileHelper::LoadFileToString(JsonStr, *FullPath))
+	{
+		return false;
+	}
+
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonStr);
+	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+	{
+		return false;
+	}
+
+	const TArray<TSharedPtr<FJsonValue>>* RowsJson = nullptr;
+	if (!Root->TryGetArrayField(TEXT("Rows"), RowsJson) || !RowsJson)
+	{
+		return false;
+	}
+
+	AlgorithmRows.Reset();
+	SelectedRows.Reset();
+
+	for (const TSharedPtr<FJsonValue>& Val : *RowsJson)
+	{
+		if (!Val.IsValid()) continue;
+		const TSharedPtr<FJsonObject> RowObj = Val->AsObject();
+		if (!RowObj.IsValid()) continue;
+
+		FAlgorithmEntry Entry;
+		RowObj->TryGetStringField(TEXT("Mission"), Entry.Mission);
+		RowObj->TryGetStringField(TEXT("TaskDetail"), Entry.TaskDetail);
+		RowObj->TryGetStringField(TEXT("AlgorithmName"), Entry.AlgorithmName);
+		RowObj->TryGetStringField(TEXT("TrainingEnvironment"), Entry.TrainingEnvironment);
+		RowObj->TryGetStringField(TEXT("TrainingData"), Entry.TrainingData);
+		RowObj->TryGetStringField(TEXT("ConfigPath"), Entry.ConfigPath);
+
+		bool bSelected = false;
+		RowObj->TryGetBoolField(TEXT("Selected"), bSelected);
+
+		AlgorithmRows.Add(Entry);
+		SelectedRows.Add(bSelected);
+	}
+
+	return AlgorithmRows.Num() > 0;
 }
 
 TSharedRef<SWidget> SScenarioMainTable::MakeRow(int32 RowIndex)

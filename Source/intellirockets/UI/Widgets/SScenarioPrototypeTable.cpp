@@ -15,6 +15,12 @@
 #include "Widgets/SWindow.h"
 #include "GenericPlatform/GenericWindow.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "HAL/FileManager.h"
 
 namespace
 {
@@ -60,14 +66,33 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 {
 	OnRowEdit = InArgs._OnRowEdit;
 	OnRowDelete = InArgs._OnRowDelete;
+	PresetIndex = InArgs._DataPresetIndex;
 
-	PrototypeRows = {
-		{ TEXT("近程飞行器样机A"), TEXT("适用于近距离作战，具备高精度目标识别与快速响应能力") },
-		{ TEXT("中程飞行器样机B"), TEXT("平衡速度与精度，具备中等距离目标搜索和抗干扰性能") },
-		{ TEXT("远程飞行器样机C"), TEXT("远距离探测能力，广域覆盖和复杂环境适应性") }
-	};
+	// 优先从持久化文件加载；如果失败则回退到默认预设
+	if (!LoadPersistent())
+	{
+		// 根据预设选择不同的默认数据（0: 决策，1: 感知）
+		if (PresetIndex == 1)
+		{
+			// 感知：样机更偏向传感与识别链路
+			PrototypeRows = {
+				{ TEXT("近程飞行器样机A"), TEXT("近距目标快速检测与跟踪，低空抗遮挡优化") },
+				{ TEXT("中程飞行器样机B"), TEXT("多目标并发识别与跟踪，抗干扰融合") },
+				{ TEXT("远程飞行器样机C"), TEXT("远距离热源探测与红外伪装识别") }
+			};
+		}
+		else
+		{
+			// 决策：样机更偏向任务执行与协同能力
+			PrototypeRows = {
+				{ TEXT("作战样机Alpha"), TEXT("编队协同与任务分配，航迹重规划") },
+				{ TEXT("作战样机Bravo"), TEXT("对抗策略学习与资源分配优化") },
+				{ TEXT("作战样机Charlie"), TEXT("多智能体协同决策与冲突消解") }
+			};
+		}
 
-	SelectedRows.Init(false, PrototypeRows.Num());
+		SelectedRows.Init(false, PrototypeRows.Num());
+	}
 
 	ChildSlot
 	[
@@ -139,7 +164,7 @@ TSharedRef<SWidget> SScenarioPrototypeTable::BuildHeader()
 	TSharedRef<SHorizontalBox> Header = SNew(SHorizontalBox);
 	const TArray<FText> Headers = {
 		FText::FromString(TEXT("选择")),
-		FText::FromString(TEXT("系统名")),
+		FText::FromString(TEXT("样机名")),
 		FText::FromString(TEXT("简介")),
 		FText::FromString(TEXT("操作"))
 	};
@@ -166,6 +191,97 @@ TSharedRef<SWidget> SScenarioPrototypeTable::BuildRows()
 	SAssignNew(RowScrollBox, SScrollBox);
 	RefreshRows();
 	return RowScrollBox.ToSharedRef();
+}
+
+void SScenarioPrototypeTable::SavePersistent() const
+{
+	const FString FileName = (PresetIndex == 1)
+		? TEXT("ScenarioPrototypes_Perception.json")
+		: TEXT("ScenarioPrototypes_Decision.json");
+
+	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
+	IFileManager::Get().MakeDirectory(*Dir, true);
+	const FString FullPath = FPaths::Combine(Dir, FileName);
+
+	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> RowsJson;
+
+	for (int32 i = 0; i < PrototypeRows.Num(); ++i)
+	{
+		const FPrototypeEntry& Entry = PrototypeRows[i];
+		TSharedRef<FJsonObject> RowObj = MakeShared<FJsonObject>();
+		RowObj->SetStringField(TEXT("PrototypeName"), Entry.PrototypeName);
+		RowObj->SetStringField(TEXT("Description"), Entry.Description);
+		const bool bSelected = SelectedRows.IsValidIndex(i) && SelectedRows[i];
+		RowObj->SetBoolField(TEXT("Selected"), bSelected);
+
+		RowsJson.Add(MakeShared<FJsonValueObject>(RowObj));
+	}
+
+	Root->SetArrayField(TEXT("Rows"), RowsJson);
+
+	FString Output;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Output);
+	if (FJsonSerializer::Serialize(Root, Writer))
+	{
+		FFileHelper::SaveStringToFile(Output, *FullPath);
+	}
+}
+
+bool SScenarioPrototypeTable::LoadPersistent()
+{
+	const FString FileName = (PresetIndex == 1)
+		? TEXT("ScenarioPrototypes_Perception.json")
+		: TEXT("ScenarioPrototypes_Decision.json");
+
+	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
+	const FString FullPath = FPaths::Combine(Dir, FileName);
+
+	if (!FPaths::FileExists(FullPath))
+	{
+		return false;
+	}
+
+	FString JsonStr;
+	if (!FFileHelper::LoadFileToString(JsonStr, *FullPath))
+	{
+		return false;
+	}
+
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonStr);
+	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+	{
+		return false;
+	}
+
+	const TArray<TSharedPtr<FJsonValue>>* RowsJson = nullptr;
+	if (!Root->TryGetArrayField(TEXT("Rows"), RowsJson) || !RowsJson)
+	{
+		return false;
+	}
+
+	PrototypeRows.Reset();
+	SelectedRows.Reset();
+
+	for (const TSharedPtr<FJsonValue>& Val : *RowsJson)
+	{
+		if (!Val.IsValid()) continue;
+		const TSharedPtr<FJsonObject> RowObj = Val->AsObject();
+		if (!RowObj.IsValid()) continue;
+
+		FPrototypeEntry Entry;
+		RowObj->TryGetStringField(TEXT("PrototypeName"), Entry.PrototypeName);
+		RowObj->TryGetStringField(TEXT("Description"), Entry.Description);
+
+		bool bSelected = false;
+		RowObj->TryGetBoolField(TEXT("Selected"), bSelected);
+
+		PrototypeRows.Add(Entry);
+		SelectedRows.Add(bSelected);
+	}
+
+	return PrototypeRows.Num() > 0;
 }
 
 TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
@@ -197,7 +313,7 @@ TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
 		})
 	];
 
-	// 文本列（样机名和简介）
+	// 文本列（样机名、简介）
 	for (int32 Col = 0; Col < 2; ++Col)
 	{
 		Line->AddSlot()
@@ -341,8 +457,8 @@ void SScenarioPrototypeTable::RefreshRows()
 void SScenarioPrototypeTable::AddPrototype()
 {
 	FPrototypeEntry NewEntry;
-	NewEntry.PrototypeName = TEXT("新分系统");
-	NewEntry.Description = TEXT("请填写分系统简介");
+	NewEntry.PrototypeName = TEXT("新样机");
+	NewEntry.Description = TEXT("请填写样机简介");
 
 	const int32 NewIndex = PrototypeRows.Add(NewEntry);
 	SelectedRows.Add(false);
