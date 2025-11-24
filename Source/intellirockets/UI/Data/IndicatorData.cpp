@@ -72,6 +72,30 @@ bool FIndicatorDataLoader::SaveToFile(const FString& FilePath, const FIndicatorD
 				IndObj->SetStringField(TEXT("name"), Indicator.Name);
 				IndObj->SetStringField(TEXT("nameEn"), Indicator.NameEn);
 				IndObj->SetStringField(TEXT("description"), Indicator.Description);
+				IndObj->SetStringField(TEXT("level"), Indicator.Level);
+				
+				// 保存算法名称数组
+				if (Indicator.AlgorithmNames.Num() > 0)
+				{
+					TArray<TSharedPtr<FJsonValue>> AlgorithmNamesArray;
+					for (const FString& Name : Indicator.AlgorithmNames)
+					{
+						AlgorithmNamesArray.Add(MakeShareable(new FJsonValueString(Name)));
+					}
+					IndObj->SetArrayField(TEXT("algorithmNames"), AlgorithmNamesArray);
+				}
+				
+				// 保存分系统名称数组
+				if (Indicator.PrototypeNames.Num() > 0)
+				{
+					TArray<TSharedPtr<FJsonValue>> PrototypeNamesArray;
+					for (const FString& Name : Indicator.PrototypeNames)
+					{
+						PrototypeNamesArray.Add(MakeShareable(new FJsonValueString(Name)));
+					}
+					IndObj->SetArrayField(TEXT("prototypeNames"), PrototypeNamesArray);
+				}
+				
 				IndicatorsArray.Add(MakeShareable(new FJsonValueObject(IndObj)));
 			}
 			SubCatObj->SetArrayField(TEXT("indicators"), IndicatorsArray);
@@ -97,6 +121,36 @@ FIndicatorInfo FIndicatorDataLoader::ParseIndicator(const TSharedPtr<FJsonObject
 	JsonObj->TryGetStringField(TEXT("name"), Info.Name);
 	JsonObj->TryGetStringField(TEXT("nameEn"), Info.NameEn);
 	JsonObj->TryGetStringField(TEXT("description"), Info.Description);
+	JsonObj->TryGetStringField(TEXT("level"), Info.Level);
+	
+	// 解析算法名称数组
+	const TArray<TSharedPtr<FJsonValue>>* AlgorithmNamesArray;
+	if (JsonObj->TryGetArrayField(TEXT("algorithmNames"), AlgorithmNamesArray))
+	{
+		Info.AlgorithmNames.Empty();
+		for (const TSharedPtr<FJsonValue>& Value : *AlgorithmNamesArray)
+		{
+			if (Value->Type == EJson::String)
+			{
+				Info.AlgorithmNames.Add(Value->AsString());
+			}
+		}
+	}
+	
+	// 解析分系统名称数组
+	const TArray<TSharedPtr<FJsonValue>>* PrototypeNamesArray;
+	if (JsonObj->TryGetArrayField(TEXT("prototypeNames"), PrototypeNamesArray))
+	{
+		Info.PrototypeNames.Empty();
+		for (const TSharedPtr<FJsonValue>& Value : *PrototypeNamesArray)
+		{
+			if (Value->Type == EJson::String)
+			{
+				Info.PrototypeNames.Add(Value->AsString());
+			}
+		}
+	}
+	
 	return Info;
 }
 

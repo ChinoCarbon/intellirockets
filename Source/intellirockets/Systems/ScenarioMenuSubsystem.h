@@ -22,6 +22,7 @@ class UScenarioMenuSubsystem : public UGameInstanceSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+	AMockMissileActor* SpawnMissile(UWorld* World, AActor* Target, bool bFromAutoFire, const FVector* OverrideLocation = nullptr, const FRotator* OverrideRotation = nullptr);
 
 private:
 	void OnWorldReady(UWorld* World, const UWorld::InitializationValues IVs);
@@ -37,6 +38,8 @@ private:
 	void ApplyEnvironmentSettings(UWorld* World, const FScenarioTestConfig& Config);
 	void DeployBlueForScenario(UWorld* World, const FScenarioTestConfig& Config);
 	void ClearSpawnedBlueUnits();
+	void SpawnRadarJammers(UWorld* World); // 生成雷达干扰区域
+	void ClearRadarJammers(); // 清除雷达干扰区域
 	void FinalizeScenarioAfterLoad();
 	bool AreScenarioLevelsReady(UWorld* World) const;
 	UClass* ResolveBlueUnitClass() const;
@@ -56,7 +59,6 @@ private:
 	bool SpawnBlueUnitAtLocation(UWorld* World, const FVector& DesiredLocation, const FRotator& Facing, const FString& MarkerName, class UStaticMesh* UnitMesh, class UMaterialInterface* UnitMaterial, const TArray<int32>& CountermeasureIndices);
 	bool FireSingleMissile(bool bFromAutoFire = false);
 	void FireMultipleMissiles(int32 Count);
-	AMockMissileActor* SpawnMissile(UWorld* World, AActor* Target, bool bFromAutoFire);
 	AActor* SelectNextBlueTarget();
 	void HandleMissileImpact(AMockMissileActor* Missile, AActor* HitActor);
 	void HandleMissileExpired(AMockMissileActor* Missile);
@@ -93,6 +95,11 @@ private:
 	void BuildIndicatorEvaluations(TArray<FIndicatorEvaluationResult>& OutResults) const;
 
 public:
+	/** 获取所有有效的蓝方单位列表（供导弹搜索目标使用） */
+	void GetActiveBlueUnits(TArray<AActor*>& OutUnits) const;
+	/** 获取所有雷达干扰区域列表（供导弹检测干扰使用） */
+	void GetActiveRadarJammers(TArray<class ARadarJammerActor*>& OutJammers) const;
+	
 	const FMissileTestSummary& GetMissileTestSummary() const { return LastMissileSummary; }
 	const TArray<FMissileTestRecord>& GetMissileTestRecords() const { return MissileTestRecords; }
 	bool HasMissileTestData() const { return MissileTestRecords.Num() > 0; }
@@ -135,6 +142,7 @@ private:
 	TWeakObjectPtr<UWorld> PendingScenarioWorld;
 	bool bPendingScenarioWaitingLogged = false;
 	TArray<TWeakObjectPtr<AActor>> ActiveBlueUnits;
+	TArray<TWeakObjectPtr<class ARadarJammerActor>> ActiveRadarJammers; // 雷达干扰区域
 	TSharedPtr<SBlueUnitMonitor> BlueMonitorWidget;
 	TSharedPtr<SWidget> BlueMonitorRoot;
 	bool bUsingCustomDeployment = false;

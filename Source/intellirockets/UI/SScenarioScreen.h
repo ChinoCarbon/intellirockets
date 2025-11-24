@@ -8,6 +8,8 @@ struct FScenarioTestConfig
 	TArray<TArray<FString>> SelectedTableRowTexts;
 	TArray<int32> SelectedPrototypeRowIndices;
 	TArray<TArray<FString>> SelectedPrototypeRowTexts;
+	TArray<FString> SelectedAlgorithmNames;  // 选中的算法名称列表
+	TArray<FString> SelectedPrototypeNames;  // 选中的分系统名称列表
 	TArray<FString> SelectedIndicatorIds;
 	TArray<FString> SelectedIndicatorDetails;
 	int32 WeatherIndex = 0;
@@ -77,6 +79,9 @@ private:
 	TSharedRef<SWidget> BuildDecisionStep3();
 	TSharedRef<SWidget> BuildDecisionStep4();
 	TSharedRef<SWidget> BuildDecisionStep5();
+	
+	// 根据Step1的选择状态更新Step2的指标过滤
+	void UpdateIndicatorFilter();
 
 private:
 	int32 StepIndex = 0;

@@ -22,7 +22,8 @@ public class intellirockets : ModuleRules
 				"Json",
 				"JsonUtilities",
 				"NavigationSystem",
-				"AIModule"
+				"AIModule",
+				"ProceduralMeshComponent"
 			}
 		);
 

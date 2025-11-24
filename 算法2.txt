@@ -1,4 +1,4 @@
-#include "UI/Widgets/SScenarioPrototypeTable.h"
+#include "UI/Widgets/SScenarioMainTable.h"
 #include "UI/Styles/ScenarioStyle.h"
 
 #include "Widgets/SBoxPanel.h"
@@ -6,6 +6,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -21,10 +22,16 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "HAL/FileManager.h"
 
 namespace
 {
-	static FString PromptForPrototypePath()
+	static FString PromptForConfigPath()
 	{
 		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 		if (!DesktopPlatform)
@@ -36,15 +43,15 @@ namespace
 		TSharedPtr<SWindow> ActiveWindow = FSlateApplication::Get().GetActiveTopLevelWindow();
 		if (ActiveWindow.IsValid())
 		{
-			const TSharedPtr<class FGenericWindow> NativeWindow = ActiveWindow->GetNativeWindow();
-			ParentWindowHandle = NativeWindow.IsValid() ? NativeWindow->GetOSWindowHandle() : nullptr;
+		const TSharedPtr<class FGenericWindow> NativeWindow = ActiveWindow->GetNativeWindow();
+		ParentWindowHandle = NativeWindow.IsValid() ? NativeWindow->GetOSWindowHandle() : nullptr;
 		}
 
 		TArray<FString> OutFiles;
-		const FString Title = TEXT("选择样机文件");
+		const FString Title = TEXT("选择算法配置文件");
 		const FString DefaultPath = FPaths::ProjectContentDir();
 		const FString DefaultFile = TEXT("");
-		const FString FileTypes = TEXT("样机文件 (*.uasset;*.json;*.txt)|*.uasset;*.json;*.txt|所有文件 (*.*)|*.*");
+		const FString FileTypes = TEXT("配置文件 (*.json;*.txt;*.cfg)|*.json;*.txt;*.cfg|所有文件 (*.*)|*.*");
 
 		if (DesktopPlatform->OpenFileDialog(
 			ParentWindowHandle,
@@ -62,7 +69,7 @@ namespace
 	}
 }
 
-void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
+void SScenarioMainTable::Construct(const FArguments& InArgs)
 {
 	OnRowEdit = InArgs._OnRowEdit;
 	OnRowDelete = InArgs._OnRowDelete;
@@ -71,27 +78,26 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 	// 优先从持久化文件加载；如果失败则回退到默认预设
 	if (!LoadPersistent())
 	{
-		// 根据预设选择不同的默认数据（0: 决策，1: 感知）
 		if (PresetIndex == 1)
 		{
-			// 感知：样机更偏向传感与识别链路
-			PrototypeRows = {
-				{ TEXT("近程飞行器样机A"), TEXT("近距目标快速检测与跟踪，低空抗遮挡优化") },
-				{ TEXT("中程飞行器样机B"), TEXT("多目标并发识别与跟踪，抗干扰融合") },
-				{ TEXT("远程飞行器样机C"), TEXT("远距离热源探测与红外伪装识别") }
+			// 感知：更偏向检测/识别/跟踪任务
+			AlgorithmRows = {
+				{ TEXT("目标检测"), TEXT("复杂地面环境下的目标检测与识别"), TEXT("多模态检测融合"), TEXT("森林-薄雾"), TEXT("红外+可见光融合"), TEXT("/Configs/Perception/ObjectDetect.json") },
+				{ TEXT("多目标跟踪"), TEXT("中距离多目标持续跟踪与遮挡判别"), TEXT("多目标数据关联"), TEXT("城郊-弱光"), TEXT("雷达+光电联合"), TEXT("/Configs/Perception/MOT.json") },
+				{ TEXT("抗干扰识别"), TEXT("电磁干扰下的稳定识别与恢复"), TEXT("频谱分析与自适应选择"), TEXT("沿海-电磁复杂"), TEXT("频谱+雷达"), TEXT("/Configs/Perception/JammingResist.json") }
 			};
 		}
 		else
 		{
-			// 决策：样机更偏向任务执行与协同能力
-			PrototypeRows = {
-				{ TEXT("作战样机Alpha"), TEXT("编队协同与任务分配，航迹重规划") },
-				{ TEXT("作战样机Bravo"), TEXT("对抗策略学习与资源分配优化") },
-				{ TEXT("作战样机Charlie"), TEXT("多智能体协同决策与冲突消解") }
+			// 决策：偏任务规划与协同
+			AlgorithmRows = {
+				{ TEXT("空地联合打击"), TEXT("压制敌方防空节点，确保突击通道"), TEXT("自适应航迹规划"), TEXT("高原沙漠"), TEXT("卫星+雷达复合侦察"), TEXT("/Configs/Strike/AdaptiveRoute.json") },
+				{ TEXT("防空拦截"), TEXT("中远程导弹拦截入侵目标"), TEXT("多传感器融合决策"), TEXT("沿海城市"), TEXT("雷达+光电联合数据"), TEXT("/Configs/AirDefense/FusionDecision.json") },
+				{ TEXT("海上巡航"), TEXT("护航编队并侦察异常信号"), TEXT("航迹重规划"), TEXT("近海气象多变"), TEXT("声呐+北斗定位"), TEXT("/Configs/Naval/PatrolPlanner.json") }
 			};
 		}
 
-		SelectedRows.Init(false, PrototypeRows.Num());
+		SelectedRows.Init(false, AlgorithmRows.Num());
 	}
 
 	ChildSlot
@@ -111,7 +117,7 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 				+ SHorizontalBox::Slot().VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.Text(FText::FromString(TEXT("分系统列表")))
+					.Text(FText::FromString(TEXT("算法列表")))
 					.ColorAndOpacity(ScenarioStyle::Text)
 					.Font(ScenarioStyle::BoldFont(14))
 				]
@@ -125,7 +131,7 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 					.ButtonStyle(FCoreStyle::Get(), "NoBorder")
 					.OnClicked_Lambda([this]()
 					{
-						AddPrototype();
+						AddAlgorithm();
 						return FReply::Handled();
 					})
 					[
@@ -135,7 +141,7 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 						.BorderBackgroundColor(ScenarioStyle::Accent)
 						[
 							SNew(STextBlock)
-							.Text(FText::FromString(TEXT("+ 新增分系统")))
+							.Text(FText::FromString(TEXT("+ 新增算法")))
 							.ColorAndOpacity(ScenarioStyle::Text)
 							.Font(ScenarioStyle::Font(12))
 						]
@@ -159,17 +165,20 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 	];
 }
 
-TSharedRef<SWidget> SScenarioPrototypeTable::BuildHeader()
+TSharedRef<SWidget> SScenarioMainTable::BuildHeader()
 {
 	TSharedRef<SHorizontalBox> Header = SNew(SHorizontalBox);
 	const TArray<FText> Headers = {
 		FText::FromString(TEXT("选择")),
-		FText::FromString(TEXT("样机名")),
-		FText::FromString(TEXT("简介")),
+		FText::FromString(TEXT("作战任务")),
+		FText::FromString(TEXT("任务")),
+		FText::FromString(TEXT("算法名称")),
+		FText::FromString(TEXT("训练环境")),
+		FText::FromString(TEXT("训练数据")),
 		FText::FromString(TEXT("操作"))
 	};
 
-	const TArray<float> ColWidths = { 0.1f, 0.25f, 0.45f, 0.2f };
+	const TArray<float> ColWidths = { 0.07f, 0.14f, 0.20f, 0.15f, 0.15f, 0.13f, 0.16f };
 
 	for (int32 i = 0; i < Headers.Num(); ++i)
 	{
@@ -186,18 +195,19 @@ TSharedRef<SWidget> SScenarioPrototypeTable::BuildHeader()
 	return Header;
 }
 
-TSharedRef<SWidget> SScenarioPrototypeTable::BuildRows()
+TSharedRef<SWidget> SScenarioMainTable::BuildRows()
 {
 	SAssignNew(RowScrollBox, SScrollBox);
 	RefreshRows();
 	return RowScrollBox.ToSharedRef();
 }
 
-void SScenarioPrototypeTable::SavePersistent() const
+void SScenarioMainTable::SavePersistent() const
 {
+	// 根据预设选择不同的保存文件（感知 / 决策）
 	const FString FileName = (PresetIndex == 1)
-		? TEXT("ScenarioPrototypes_Perception.json")
-		: TEXT("ScenarioPrototypes_Decision.json");
+		? TEXT("ScenarioAlgorithms_Perception.json")
+		: TEXT("ScenarioAlgorithms_Decision.json");
 
 	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
 	IFileManager::Get().MakeDirectory(*Dir, true);
@@ -206,12 +216,16 @@ void SScenarioPrototypeTable::SavePersistent() const
 	TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
 	TArray<TSharedPtr<FJsonValue>> RowsJson;
 
-	for (int32 i = 0; i < PrototypeRows.Num(); ++i)
+	for (int32 i = 0; i < AlgorithmRows.Num(); ++i)
 	{
-		const FPrototypeEntry& Entry = PrototypeRows[i];
+		const FAlgorithmEntry& Entry = AlgorithmRows[i];
 		TSharedRef<FJsonObject> RowObj = MakeShared<FJsonObject>();
-		RowObj->SetStringField(TEXT("PrototypeName"), Entry.PrototypeName);
-		RowObj->SetStringField(TEXT("Description"), Entry.Description);
+		RowObj->SetStringField(TEXT("Mission"), Entry.Mission);
+		RowObj->SetStringField(TEXT("TaskDetail"), Entry.TaskDetail);
+		RowObj->SetStringField(TEXT("AlgorithmName"), Entry.AlgorithmName);
+		RowObj->SetStringField(TEXT("TrainingEnvironment"), Entry.TrainingEnvironment);
+		RowObj->SetStringField(TEXT("TrainingData"), Entry.TrainingData);
+		RowObj->SetStringField(TEXT("ConfigPath"), Entry.ConfigPath);
 		const bool bSelected = SelectedRows.IsValidIndex(i) && SelectedRows[i];
 		RowObj->SetBoolField(TEXT("Selected"), bSelected);
 
@@ -228,11 +242,11 @@ void SScenarioPrototypeTable::SavePersistent() const
 	}
 }
 
-bool SScenarioPrototypeTable::LoadPersistent()
+bool SScenarioMainTable::LoadPersistent()
 {
 	const FString FileName = (PresetIndex == 1)
-		? TEXT("ScenarioPrototypes_Perception.json")
-		: TEXT("ScenarioPrototypes_Decision.json");
+		? TEXT("ScenarioAlgorithms_Perception.json")
+		: TEXT("ScenarioAlgorithms_Decision.json");
 
 	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
 	const FString FullPath = FPaths::Combine(Dir, FileName);
@@ -261,7 +275,7 @@ bool SScenarioPrototypeTable::LoadPersistent()
 		return false;
 	}
 
-	PrototypeRows.Reset();
+	AlgorithmRows.Reset();
 	SelectedRows.Reset();
 
 	for (const TSharedPtr<FJsonValue>& Val : *RowsJson)
@@ -270,28 +284,32 @@ bool SScenarioPrototypeTable::LoadPersistent()
 		const TSharedPtr<FJsonObject> RowObj = Val->AsObject();
 		if (!RowObj.IsValid()) continue;
 
-		FPrototypeEntry Entry;
-		RowObj->TryGetStringField(TEXT("PrototypeName"), Entry.PrototypeName);
-		RowObj->TryGetStringField(TEXT("Description"), Entry.Description);
+		FAlgorithmEntry Entry;
+		RowObj->TryGetStringField(TEXT("Mission"), Entry.Mission);
+		RowObj->TryGetStringField(TEXT("TaskDetail"), Entry.TaskDetail);
+		RowObj->TryGetStringField(TEXT("AlgorithmName"), Entry.AlgorithmName);
+		RowObj->TryGetStringField(TEXT("TrainingEnvironment"), Entry.TrainingEnvironment);
+		RowObj->TryGetStringField(TEXT("TrainingData"), Entry.TrainingData);
+		RowObj->TryGetStringField(TEXT("ConfigPath"), Entry.ConfigPath);
 
 		bool bSelected = false;
 		RowObj->TryGetBoolField(TEXT("Selected"), bSelected);
 
-		PrototypeRows.Add(Entry);
+		AlgorithmRows.Add(Entry);
 		SelectedRows.Add(bSelected);
 	}
 
-	return PrototypeRows.Num() > 0;
+	return AlgorithmRows.Num() > 0;
 }
 
-TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
+TSharedRef<SWidget> SScenarioMainTable::MakeRow(int32 RowIndex)
 {
 	const bool bIsEditing = (EditingRowIndex == RowIndex);
-	const FPrototypeEntry& DisplayData = bIsEditing ? EditingBuffer : PrototypeRows[RowIndex];
+	const FAlgorithmEntry& DisplayData = bIsEditing ? EditingBuffer : AlgorithmRows[RowIndex];
 	const TArray<FText> ColumnTexts = DisplayData.ToTextArray();
 	TSharedRef<SHorizontalBox> Line = SNew(SHorizontalBox);
 
-	const TArray<float> ColWidths = { 0.1f, 0.25f, 0.45f, 0.2f };
+	const TArray<float> ColWidths = { 0.07f, 0.14f, 0.20f, 0.15f, 0.15f, 0.13f, 0.16f };
 
 	// 选择列（复选框）
 	Line->AddSlot()
@@ -309,14 +327,12 @@ TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
 			if (SelectedRows.IsValidIndex(RowIndex))
 			{
 				SelectedRows[RowIndex] = (NewState == ECheckBoxState::Checked);
-
-				SavePersistent();
 			}
 		})
 	];
 
-	// 文本列（样机名、简介）
-	for (int32 Col = 0; Col < 2; ++Col)
+	// 文本列
+	for (int32 Col = 0; Col < 5; ++Col)
 	{
 		Line->AddSlot()
 		.FillWidth(ColWidths[Col + 1])
@@ -336,6 +352,21 @@ TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
 				.Font(ScenarioStyle::Font(12)))
 		];
 	}
+
+	const auto BuildButtonContent = [](const FString& Label, const FLinearColor& Background) -> TSharedRef<SWidget>
+	{
+		return SNew(SBorder)
+			.Padding(FMargin(12.f, 4.f))
+			.BorderImage(FCoreStyle::Get().GetBrush("Button"))
+			.BorderBackgroundColor(Background)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(Label))
+				.ColorAndOpacity(ScenarioStyle::Text)
+				.Font(ScenarioStyle::Font(12))
+				.Justification(ETextJustify::Center)
+			];
+	};
 
 	const TSharedRef<SWidget> EditButton = bIsEditing
 		? StaticCastSharedRef<SWidget>(
@@ -388,21 +419,22 @@ TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
 			.ContentPadding(FMargin(8.f, 4.f))
 			.OnClicked_Lambda([this, RowIndex]()
 			{
-				if (!PrototypeRows.IsValidIndex(RowIndex))
+				if (!AlgorithmRows.IsValidIndex(RowIndex))
 				{
 					return FReply::Handled();
 				}
 
-				const FString PickedFile = PromptForPrototypePath();
+				const FString PickedFile = PromptForConfigPath();
 				if (!PickedFile.IsEmpty())
 				{
-					UE_LOG(LogTemp, Log, TEXT("加载分系统成功：%s"), *PickedFile);
+					AlgorithmRows[RowIndex].ConfigPath = PickedFile;
+					UE_LOG(LogTemp, Log, TEXT("加载文件成功：%s"), *PickedFile);
 				}
 				return FReply::Handled();
 			})
 			[
 				SNew(STextBlock)
-				.Text(FText::FromString(TEXT("加载分系统")))
+				.Text(FText::FromString(TEXT("加载文件")))
 				.ColorAndOpacity(ScenarioStyle::Text)
 				.Font(ScenarioStyle::Font(11))
 			]
@@ -439,7 +471,7 @@ TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
 		];
 }
 
-void SScenarioPrototypeTable::RefreshRows()
+void SScenarioMainTable::RefreshRows()
 {
 	if (!RowScrollBox.IsValid())
 	{
@@ -447,7 +479,7 @@ void SScenarioPrototypeTable::RefreshRows()
 	}
 
 	RowScrollBox->ClearChildren();
-	for (int32 RowIndex = 0; RowIndex < PrototypeRows.Num(); ++RowIndex)
+	for (int32 RowIndex = 0; RowIndex < AlgorithmRows.Num(); ++RowIndex)
 	{
 		RowScrollBox->AddSlot()
 		[
@@ -456,54 +488,54 @@ void SScenarioPrototypeTable::RefreshRows()
 	}
 }
 
-void SScenarioPrototypeTable::AddPrototype()
+void SScenarioMainTable::AddAlgorithm()
 {
-	FPrototypeEntry NewEntry;
-	NewEntry.PrototypeName = TEXT("新样机");
-	NewEntry.Description = TEXT("请填写样机简介");
+	FAlgorithmEntry NewEntry;
+	NewEntry.Mission = TEXT("新作战任务");
+	NewEntry.TaskDetail = TEXT("请填写任务描述");
+	NewEntry.AlgorithmName = TEXT("算法名称");
+	NewEntry.TrainingEnvironment = TEXT("训练环境");
+	NewEntry.TrainingData = TEXT("训练数据");
+	NewEntry.ConfigPath = TEXT("/Configs/Custom/NewAlgorithm.json");
 
-	const int32 NewIndex = PrototypeRows.Add(NewEntry);
+	const int32 NewIndex = AlgorithmRows.Add(NewEntry);
 	SelectedRows.Add(false);
 
 	BeginEditRow(NewIndex);
-
-	SavePersistent();
 }
 
-void SScenarioPrototypeTable::BeginEditRow(int32 RowIndex)
+void SScenarioMainTable::BeginEditRow(int32 RowIndex)
 {
-	if (!PrototypeRows.IsValidIndex(RowIndex))
+	if (!AlgorithmRows.IsValidIndex(RowIndex))
 	{
 		return;
 	}
 
 	EditingRowIndex = RowIndex;
-	EditingBuffer = PrototypeRows[RowIndex];
+	EditingBuffer = AlgorithmRows[RowIndex];
 	RefreshRows();
 }
 
-void SScenarioPrototypeTable::CommitEditRow(int32 RowIndex)
+void SScenarioMainTable::CommitEditRow(int32 RowIndex)
 {
-	if (!PrototypeRows.IsValidIndex(RowIndex) || RowIndex != EditingRowIndex)
+	if (!AlgorithmRows.IsValidIndex(RowIndex) || RowIndex != EditingRowIndex)
 	{
 		return;
 	}
 
-	PrototypeRows[RowIndex] = EditingBuffer;
+	AlgorithmRows[RowIndex] = EditingBuffer;
 	EditingRowIndex = INDEX_NONE;
 	RefreshRows();
-
-	SavePersistent();
 }
 
-void SScenarioPrototypeTable::RemoveRow(int32 RowIndex)
+void SScenarioMainTable::RemoveRow(int32 RowIndex)
 {
-	if (!PrototypeRows.IsValidIndex(RowIndex))
+	if (!AlgorithmRows.IsValidIndex(RowIndex))
 	{
 		return;
 	}
 
-	PrototypeRows.RemoveAt(RowIndex);
+	AlgorithmRows.RemoveAt(RowIndex);
 	SelectedRows.RemoveAt(RowIndex);
 
 	if (EditingRowIndex == RowIndex)
@@ -516,29 +548,27 @@ void SScenarioPrototypeTable::RemoveRow(int32 RowIndex)
 	}
 
 	RefreshRows();
-
-	SavePersistent();
 }
 
-void SScenarioPrototypeTable::UpdateEditingBuffer(int32 ColumnIndex, const FString& NewValue)
+void SScenarioMainTable::UpdateEditingBuffer(int32 ColumnIndex, const FString& NewValue)
 {
 	switch (ColumnIndex)
 	{
-	case 0: EditingBuffer.PrototypeName = NewValue; break;
-	case 1: EditingBuffer.Description = NewValue; break;
+	case 0: EditingBuffer.Mission = NewValue; break;
+	case 1: EditingBuffer.TaskDetail = NewValue; break;
+	case 2: EditingBuffer.AlgorithmName = NewValue; break;
+	case 3: EditingBuffer.TrainingEnvironment = NewValue; break;
+	case 4: EditingBuffer.TrainingData = NewValue; break;
 	default: break;
+	}
+
+	if (AlgorithmRows.IsValidIndex(EditingRowIndex))
+	{
+		AlgorithmRows[EditingRowIndex] = EditingBuffer;
 	}
 }
 
-TArray<FText> SScenarioPrototypeTable::FPrototypeEntry::ToTextArray() const
-{
-	return {
-		FText::FromString(PrototypeName),
-		FText::FromString(Description)
-	};
-}
-
-void SScenarioPrototypeTable::GetSelectedRowIndices(TArray<int32>& OutIndices) const
+void SScenarioMainTable::GetSelectedRowIndices(TArray<int32>& OutIndices) const
 {
 	OutIndices.Reset();
 	for (int32 i = 0; i < SelectedRows.Num(); ++i)
@@ -550,28 +580,27 @@ void SScenarioPrototypeTable::GetSelectedRowIndices(TArray<int32>& OutIndices) c
 	}
 }
 
-void SScenarioPrototypeTable::GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) const
+void SScenarioMainTable::GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) const
 {
 	OutColumns.Reset();
-	if (!PrototypeRows.IsValidIndex(RowIndex))
+	if (!AlgorithmRows.IsValidIndex(RowIndex))
 	{
 		return;
 	}
 
-	const TArray<FText> Texts = PrototypeRows[RowIndex].ToTextArray();
+	const TArray<FText> Texts = AlgorithmRows[RowIndex].ToTextArray();
 	OutColumns.Append(Texts);
 }
 
-void SScenarioPrototypeTable::GetSelectedPrototypeNames(TArray<FString>& OutNames) const
+TArray<FText> SScenarioMainTable::FAlgorithmEntry::ToTextArray() const
 {
-	OutNames.Reset();
-	for (int32 i = 0; i < SelectedRows.Num(); ++i)
-	{
-		if (SelectedRows[i] && PrototypeRows.IsValidIndex(i))
-		{
-			OutNames.Add(PrototypeRows[i].PrototypeName);
-		}
-	}
+	return {
+		FText::FromString(Mission),
+		FText::FromString(TaskDetail),
+		FText::FromString(AlgorithmName),
+		FText::FromString(TrainingEnvironment),
+		FText::FromString(TrainingData)
+	};
 }
 
 

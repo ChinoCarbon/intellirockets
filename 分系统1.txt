@@ -387,12 +387,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 					.IsChecked_Lambda([this]() { return TestMethodIndex == 0 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
 					.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
 					{
-						if (NewState == ECheckBoxState::Checked) 
-						{ 
-							TestMethodIndex = 0; 
-							UE_LOG(LogTemp, Log, TEXT("TestMethod: 算法级")); 
-							UpdateIndicatorFilter();
-						}
+						if (NewState == ECheckBoxState::Checked) { TestMethodIndex = 0; UE_LOG(LogTemp, Log, TEXT("TestMethod: 正交测试")); }
 					})
 					[
 						SNew(STextBlock).Text(FText::FromString(TEXT("算法级"))).Font(ScenarioStyle::Font(12))
@@ -404,12 +399,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 					.IsChecked_Lambda([this]() { return TestMethodIndex == 1 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
 					.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
 					{
-						if (NewState == ECheckBoxState::Checked) 
-						{ 
-							TestMethodIndex = 1; 
-							UE_LOG(LogTemp, Log, TEXT("TestMethod: 系统级")); 
-							UpdateIndicatorFilter();
-						}
+						if (NewState == ECheckBoxState::Checked) { TestMethodIndex = 1; UE_LOG(LogTemp, Log, TEXT("TestMethod: 单独测试")); }
 					})
 					[
 						SNew(STextBlock).Text(FText::FromString(TEXT("系统级"))).Font(ScenarioStyle::Font(12))
@@ -494,25 +484,20 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep2()
 					const bool bPerception = (ActiveTabIndex == 0);
 					if (IndicatorSelector.IsValid())
 					{
-						// 更新过滤条件
-						UpdateIndicatorFilter();
 						return IndicatorSelector.ToSharedRef();
 					}
 					else
 					{
 						if (bPerception)
 						{
-							SAssignNew(IndicatorSelector, SIndicatorSelector)
+							return SAssignNew(IndicatorSelector, SIndicatorSelector)
 								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/PerceptionIndicators.json"));
 						}
 						else
 						{
-							SAssignNew(IndicatorSelector, SIndicatorSelector)
+							return SAssignNew(IndicatorSelector, SIndicatorSelector)
 								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json"));
 						}
-						// 设置初始过滤条件
-						UpdateIndicatorFilter();
-						return IndicatorSelector.ToSharedRef();
 					}
 				}()
 			)
@@ -888,14 +873,12 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 
 	OutConfig.SelectedTableRowIndices.Reset();
 	OutConfig.SelectedTableRowTexts.Reset();
-	OutConfig.SelectedAlgorithmNames.Reset();
 	{
 		const bool bPerception = (ActiveTabIndex == 0);
 		TSharedPtr<SScenarioMainTable> Table = bPerception ? MainTablePerception : MainTableDecision;
 		if (Table.IsValid())
 	{
 		Table->GetSelectedRowIndices(OutConfig.SelectedTableRowIndices);
-		Table->GetSelectedAlgorithmNames(OutConfig.SelectedAlgorithmNames);
 		for (int32 idx : OutConfig.SelectedTableRowIndices)
 		{
 			TArray<FText> Cols;
@@ -912,14 +895,12 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 
 	OutConfig.SelectedPrototypeRowIndices.Reset();
 	OutConfig.SelectedPrototypeRowTexts.Reset();
-	OutConfig.SelectedPrototypeNames.Reset();
 	{
 		const bool bPerception = (ActiveTabIndex == 0);
 		TSharedPtr<SScenarioPrototypeTable> Table = bPerception ? PrototypeTablePerception : PrototypeTableDecision;
 		if (Table.IsValid())
 	{
 		Table->GetSelectedRowIndices(OutConfig.SelectedPrototypeRowIndices);
-		Table->GetSelectedPrototypeNames(OutConfig.SelectedPrototypeNames);
 		for (int32 idx : OutConfig.SelectedPrototypeRowIndices)
 		{
 			TArray<FText> Cols;
@@ -1350,64 +1331,6 @@ TSharedRef<SWidget> SScenarioScreen::BuildPerceptionContent()
 	// 与决策 Tab 完全一致的面板与按钮，确保样式/间距/按钮完全相同
 	UE_LOG(LogTemp, Log, TEXT("BuildPerceptionContent called - reuse BuildDecisionContent"));
 	return BuildDecisionContent();
-}
-
-void SScenarioScreen::UpdateIndicatorFilter()
-{
-	if (!IndicatorSelector.IsValid())
-	{
-		return;
-	}
-	
-	const bool bPerception = (ActiveTabIndex == 0);
-	
-	// 获取Step1的选择状态
-	TArray<FString> SelectedAlgorithmNames;
-	TArray<FString> SelectedPrototypeNames;
-	bool bHasAlgorithmSelection = false;
-	bool bHasPrototypeSelection = false;
-	
-	if (bPerception)
-	{
-		if (MainTablePerception.IsValid())
-		{
-			MainTablePerception->GetSelectedAlgorithmNames(SelectedAlgorithmNames);
-			bHasAlgorithmSelection = (SelectedAlgorithmNames.Num() > 0);
-		}
-		if (PrototypeTablePerception.IsValid())
-		{
-			PrototypeTablePerception->GetSelectedPrototypeNames(SelectedPrototypeNames);
-			bHasPrototypeSelection = (SelectedPrototypeNames.Num() > 0);
-		}
-	}
-	else
-	{
-		if (MainTableDecision.IsValid())
-		{
-			MainTableDecision->GetSelectedAlgorithmNames(SelectedAlgorithmNames);
-			bHasAlgorithmSelection = (SelectedAlgorithmNames.Num() > 0);
-		}
-		if (PrototypeTableDecision.IsValid())
-		{
-			PrototypeTableDecision->GetSelectedPrototypeNames(SelectedPrototypeNames);
-			bHasPrototypeSelection = (SelectedPrototypeNames.Num() > 0);
-		}
-	}
-	
-	// 优先使用算法选择，如果都没有则不过滤
-	if (bHasAlgorithmSelection)
-	{
-		IndicatorSelector->SetFilter(true, SelectedAlgorithmNames, TestMethodIndex == 0, bPerception);
-	}
-	else if (bHasPrototypeSelection)
-	{
-		IndicatorSelector->SetFilter(false, SelectedPrototypeNames, TestMethodIndex == 0, bPerception);
-	}
-	else
-	{
-		// 没有选择，清空过滤（显示所有指标）
-		IndicatorSelector->SetFilter(false, TArray<FString>(), false, bPerception);
-	}
 }
 
 

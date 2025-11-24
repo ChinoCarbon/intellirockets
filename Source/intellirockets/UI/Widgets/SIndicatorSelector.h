@@ -19,6 +19,9 @@ public:
     void GetSelectedIndicators(TArray<FString>& OutIds) const { OutIds.Reset(); for (const FString& Id : SelectedIndicatorIds) { OutIds.Add(Id); } }
     void GetSelectedIndicatorDetails(TArray<FString>& OutIds, TArray<FString>& OutNames) const;
 
+	// 设置过滤条件：根据Step1的选择来过滤指标
+	void SetFilter(bool bIsAlgorithm, const TArray<FString>& SelectedNames, bool bIsAlgorithmLevel, bool bIsPerceptionTab);
+
 private:
 	TSharedRef<SWidget> BuildCategoryList();      // 左侧分类列表
 	TSharedRef<SWidget> BuildIndicatorList();    // 中间指标列表
@@ -43,9 +46,20 @@ private:
 
 private:
 	FIndicatorData IndicatorData;
+	FIndicatorData FilteredIndicatorData;  // 过滤后的指标数据
 	int32 SelectedCategoryIndex = -1;
 	int32 SelectedSubCategoryIndex = -1;
 	TSet<FString> SelectedIndicatorIds;  // 已选择的指标ID集合
+	
+	// 过滤条件
+	bool bFilterActive = false;
+	bool bFilterIsAlgorithm = false;
+	TArray<FString> FilterSelectedNames;
+	bool bFilterIsAlgorithmLevel = false;
+	bool bFilterIsPerceptionTab = false;
+	
+	// 检查指标是否匹配过滤条件
+	bool MatchesFilter(const FIndicatorInfo& Indicator) const;
 
 	TSharedPtr<SScrollBox> CategoryListScrollBox;
 	TSharedPtr<SScrollBox> IndicatorListScrollBox;

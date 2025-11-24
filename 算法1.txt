@@ -1,3 +1,71 @@
+#include "UI/Widgets/SScenarioBreadcrumb.h"
+#include "UI/Styles/ScenarioStyle.h"
+
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Images/SImage.h"
+
+void SScenarioBreadcrumb::Construct(const FArguments& InArgs)
+{
+	CurrentStep = InArgs._CurrentStep;
+
+	ChildSlot
+	[
+		SNew(SBorder)
+		.Padding(8.f)
+		.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+		.BorderBackgroundColor(ScenarioStyle::Panel)
+		[
+			BuildSteps()
+		]
+	];
+}
+
+void SScenarioBreadcrumb::SetCurrentStep(int32 InStep)
+{
+	CurrentStep = InStep;
+	ChildSlot.AttachWidget(BuildSteps());
+}
+
+TSharedRef<SWidget> SScenarioBreadcrumb::BuildSteps()
+{
+	static const TArray<FText> Steps = {
+		FText::FromString(TEXT("被测对象和测试方法选择")),
+		FText::FromString(TEXT("指标体系构建")),
+		FText::FromString(TEXT("测评环境搭建")),
+		FText::FromString(TEXT("测评流程控制")),
+		FText::FromString(TEXT("测评结果分析可视化"))
+	};
+
+	TSharedRef<SHorizontalBox> Box = SNew(SHorizontalBox);
+	for (int32 Index = 0; Index < Steps.Num(); ++Index)
+	{
+		const bool bActive = Index <= CurrentStep;
+		Box->AddSlot()
+		.AutoWidth()
+		.Padding(6.f, 2.f)
+		[
+			SNew(STextBlock)
+			.Text(Steps[Index])
+			.ColorAndOpacity(bActive ? ScenarioStyle::Accent : ScenarioStyle::TextDim)
+			.Font(ScenarioStyle::Font(14))
+		];
+
+		if (Index < Steps.Num() - 1)
+		{
+			Box->AddSlot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(4.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT(">>")))
+				.ColorAndOpacity(ScenarioStyle::TextDim)
+				.Font(ScenarioStyle::Font(12))
+			];
+		}
+	}
 #include "UI/Widgets/SIndicatorSelector.h"
 #include "UI/Styles/ScenarioStyle.h"
 #include "UI/Data/IndicatorData.h"
@@ -14,8 +82,7 @@ void SIndicatorSelector::GetSelectedIndicatorDetails(TArray<FString>& OutIds, TA
 {
     OutIds.Reset();
     OutNames.Reset();
-    const FIndicatorData& DataToUse = bFilterActive ? FilteredIndicatorData : IndicatorData;
-    for (const FIndicatorCategory& Cat : DataToUse.Categories)
+    for (const FIndicatorCategory& Cat : IndicatorData.Categories)
     {
         for (const FIndicatorSubCategory& SubCat : Cat.SubCategories)
         {
@@ -178,21 +245,10 @@ void SIndicatorSelector::OnCategorySelected(int32 CategoryIndex, int32 SubCatego
 	RefreshCategoryList();
 	if (IndicatorTitleText.IsValid())
 	{
-		const FIndicatorData& DataToUse = bFilterActive ? FilteredIndicatorData : IndicatorData;
-		if (SelectedCategoryIndex >= 0 && SelectedCategoryIndex < DataToUse.Categories.Num() &&
-			SelectedSubCategoryIndex >= 0 && SelectedSubCategoryIndex < DataToUse.Categories[SelectedCategoryIndex].SubCategories.Num())
+		if (SelectedCategoryIndex >= 0 && SelectedCategoryIndex < IndicatorData.Categories.Num() &&
+			SelectedSubCategoryIndex >= 0 && SelectedSubCategoryIndex < IndicatorData.Categories[SelectedCategoryIndex].SubCategories.Num())
 		{
-			FString Title = DataToUse.Categories[SelectedCategoryIndex].SubCategories[SelectedSubCategoryIndex].Name;
-			if (bFilterActive)
-			{
-				FString LevelText = bFilterIsAlgorithmLevel ? TEXT("算法级") : TEXT("系统级");
-				FString TypeText = bFilterIsAlgorithm ? TEXT("算法") : TEXT("分系统");
-				if (FilterSelectedNames.Num() > 0)
-				{
-					Title = FString::Printf(TEXT("%s - %s - %s (%s)"), *Title, *LevelText, *TypeText, *FilterSelectedNames[0]);
-				}
-			}
-			IndicatorTitleText->SetText(FText::FromString(Title));
+			IndicatorTitleText->SetText(FText::FromString(IndicatorData.Categories[SelectedCategoryIndex].SubCategories[SelectedSubCategoryIndex].Name));
 		}
 		else
 		{
@@ -225,115 +281,16 @@ FReply SIndicatorSelector::OnRemoveSelected(const FString& IndicatorId)
 	return FReply::Handled();
 }
 
-void SIndicatorSelector::SetFilter(bool bIsAlgorithm, const TArray<FString>& SelectedNames, bool bIsAlgorithmLevel, bool bIsPerceptionTab)
-{
-	bFilterActive = (SelectedNames.Num() > 0);
-	bFilterIsAlgorithm = bIsAlgorithm;
-	FilterSelectedNames = SelectedNames;
-	bFilterIsAlgorithmLevel = bIsAlgorithmLevel;
-	bFilterIsPerceptionTab = bIsPerceptionTab;
-	
-	// 应用过滤，生成过滤后的数据
-	FilteredIndicatorData.Categories.Empty();
-	for (const FIndicatorCategory& Category : IndicatorData.Categories)
-	{
-		FIndicatorCategory FilteredCategory;
-		FilteredCategory.Id = Category.Id;
-		FilteredCategory.Name = Category.Name;
-		
-		for (const FIndicatorSubCategory& SubCat : Category.SubCategories)
-		{
-			FIndicatorSubCategory FilteredSubCat;
-			FilteredSubCat.Id = SubCat.Id;
-			FilteredSubCat.Name = SubCat.Name;
-			
-			for (const FIndicatorInfo& Indicator : SubCat.Indicators)
-			{
-				if (!bFilterActive || MatchesFilter(Indicator))
-				{
-					FilteredSubCat.Indicators.Add(Indicator);
-				}
-			}
-			
-			if (FilteredSubCat.Indicators.Num() > 0)
-			{
-				FilteredCategory.SubCategories.Add(FilteredSubCat);
-			}
-		}
-		
-		if (FilteredCategory.SubCategories.Num() > 0)
-		{
-			FilteredIndicatorData.Categories.Add(FilteredCategory);
-		}
-	}
-	
-	// 重置选择状态
-	if (FilteredIndicatorData.Categories.Num() > 0 && FilteredIndicatorData.Categories[0].SubCategories.Num() > 0)
-	{
-		SelectedCategoryIndex = 0;
-		SelectedSubCategoryIndex = 0;
-	}
-	else
-	{
-		SelectedCategoryIndex = -1;
-		SelectedSubCategoryIndex = -1;
-	}
-	
-	RefreshCategoryList();
-	RefreshIndicatorList();
-}
-
-bool SIndicatorSelector::MatchesFilter(const FIndicatorInfo& Indicator) const
-{
-	if (!bFilterActive) return true;
-	
-	// 检查级别匹配
-	FString ExpectedLevel = bFilterIsAlgorithmLevel ? TEXT("algorithm") : TEXT("system");
-	if (!Indicator.Level.IsEmpty() && Indicator.Level != ExpectedLevel)
-	{
-		return false;
-	}
-	
-	// 检查名称匹配
-	if (bFilterIsAlgorithm)
-	{
-		// 选择的是算法，检查algorithmNames
-		for (const FString& SelectedName : FilterSelectedNames)
-		{
-			if (Indicator.AlgorithmNames.Contains(SelectedName))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-	else
-	{
-		// 选择的是分系统，检查prototypeNames
-		for (const FString& SelectedName : FilterSelectedNames)
-		{
-			if (Indicator.PrototypeNames.Contains(SelectedName))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-}
-
 void SIndicatorSelector::RefreshIndicatorList()
 {
 	if (!IndicatorListScrollBox.IsValid()) return;
 
 	IndicatorListScrollBox->ClearChildren();
 
-	// 使用过滤后的数据
-	const FIndicatorData& DataToUse = bFilterActive ? FilteredIndicatorData : IndicatorData;
-	
-	if (SelectedCategoryIndex >= 0 && SelectedCategoryIndex < DataToUse.Categories.Num() &&
-		SelectedSubCategoryIndex >= 0 && SelectedSubCategoryIndex < DataToUse.Categories[SelectedCategoryIndex].SubCategories.Num())
+	if (SelectedCategoryIndex >= 0 && SelectedCategoryIndex < IndicatorData.Categories.Num() &&
+		SelectedSubCategoryIndex >= 0 && SelectedSubCategoryIndex < IndicatorData.Categories[SelectedCategoryIndex].SubCategories.Num())
 	{
-		const FIndicatorSubCategory& SubCat = DataToUse.Categories[SelectedCategoryIndex].SubCategories[SelectedSubCategoryIndex];
+		const FIndicatorSubCategory& SubCat = IndicatorData.Categories[SelectedCategoryIndex].SubCategories[SelectedSubCategoryIndex];
 		for (const FIndicatorInfo& Indicator : SubCat.Indicators)
 		{
 			IndicatorListScrollBox->AddSlot()
@@ -342,37 +299,17 @@ void SIndicatorSelector::RefreshIndicatorList()
 			];
 		}
 	}
-	
-	// 更新标题
-	if (IndicatorTitleText.IsValid())
-	{
-		FString Title = TEXT("指标列表");
-		if (bFilterActive)
-		{
-			FString LevelText = bFilterIsAlgorithmLevel ? TEXT("算法级") : TEXT("系统级");
-			FString TypeText = bFilterIsAlgorithm ? TEXT("算法") : TEXT("分系统");
-			if (FilterSelectedNames.Num() > 0)
-			{
-				Title = FString::Printf(TEXT("指标列表 - %s - %s (%s)"), *LevelText, *TypeText, *FilterSelectedNames[0]);
-			}
-		}
-		IndicatorTitleText->SetText(FText::FromString(Title));
-	}
 }
 
 void SIndicatorSelector::RefreshCategoryList()
 {
 	if (!CategoryListScrollBox.IsValid()) return;
 	CategoryListScrollBox->ClearChildren();
-	
-	// 使用过滤后的数据
-	const FIndicatorData& DataToUse = bFilterActive ? FilteredIndicatorData : IndicatorData;
-	
-	for (int32 CatIndex = 0; CatIndex < DataToUse.Categories.Num(); ++CatIndex)
+	for (int32 CatIndex = 0; CatIndex < IndicatorData.Categories.Num(); ++CatIndex)
 	{
 		CategoryListScrollBox->AddSlot()
 		[
-			MakeCategoryItem(DataToUse.Categories[CatIndex], CatIndex)
+			MakeCategoryItem(IndicatorData.Categories[CatIndex], CatIndex)
 		];
 	}
 }
@@ -389,12 +326,11 @@ void SIndicatorSelector::RefreshSelectedList()
 		SelectedCountText->SetText(FText::FromString(FString::Printf(TEXT("已选指标 (%d)"), SelectedIndicatorIds.Num())));
 	}
 
-	const FIndicatorData& DataToUse = bFilterActive ? FilteredIndicatorData : IndicatorData;
 	for (const FString& IndicatorId : SelectedIndicatorIds)
 	{
 		// 查找指标名称
 		FString IndicatorName;
-		for (const FIndicatorCategory& Cat : DataToUse.Categories)
+		for (const FIndicatorCategory& Cat : IndicatorData.Categories)
 		{
 			for (const FIndicatorSubCategory& SubCat : Cat.SubCategories)
 			{
@@ -446,15 +382,14 @@ TSharedRef<SWidget> SIndicatorSelector::MakeCategoryItem(const FIndicatorCategor
 TSharedRef<SWidget> SIndicatorSelector::MakeSubCategoryList(int32 CatIndex)
 {
 	TSharedRef<SVerticalBox> SubCatBox = SNew(SVerticalBox);
-	const FIndicatorData& DataToUse = bFilterActive ? FilteredIndicatorData : IndicatorData;
 	
-	if (CatIndex >= 0 && CatIndex < DataToUse.Categories.Num())
+	if (CatIndex >= 0 && CatIndex < IndicatorData.Categories.Num())
 	{
-		for (int32 SubCatIndex = 0; SubCatIndex < DataToUse.Categories[CatIndex].SubCategories.Num(); ++SubCatIndex)
+		for (int32 SubCatIndex = 0; SubCatIndex < IndicatorData.Categories[CatIndex].SubCategories.Num(); ++SubCatIndex)
 		{
 			SubCatBox->AddSlot().AutoHeight().Padding(4.f, 0.f, 0.f, 0.f)
 			[
-				MakeSubCategoryItem(DataToUse.Categories[CatIndex].SubCategories[SubCatIndex], CatIndex, SubCatIndex)
+				MakeSubCategoryItem(IndicatorData.Categories[CatIndex].SubCategories[SubCatIndex], CatIndex, SubCatIndex)
 			];
 		}
 	}
@@ -548,3 +483,8 @@ TSharedRef<SWidget> SIndicatorSelector::MakeSelectedItem(const FString& Indicato
 			]
 		];
 }
+
+	return Box;
+}
+
+

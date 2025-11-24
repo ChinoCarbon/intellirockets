@@ -327,6 +327,9 @@ TSharedRef<SWidget> SScenarioMainTable::MakeRow(int32 RowIndex)
 			if (SelectedRows.IsValidIndex(RowIndex))
 			{
 				SelectedRows[RowIndex] = (NewState == ECheckBoxState::Checked);
+
+				// 持久化选择状态
+				SavePersistent();
 			}
 		})
 	];
@@ -502,6 +505,8 @@ void SScenarioMainTable::AddAlgorithm()
 	SelectedRows.Add(false);
 
 	BeginEditRow(NewIndex);
+
+	SavePersistent();
 }
 
 void SScenarioMainTable::BeginEditRow(int32 RowIndex)
@@ -526,6 +531,8 @@ void SScenarioMainTable::CommitEditRow(int32 RowIndex)
 	AlgorithmRows[RowIndex] = EditingBuffer;
 	EditingRowIndex = INDEX_NONE;
 	RefreshRows();
+
+	SavePersistent();
 }
 
 void SScenarioMainTable::RemoveRow(int32 RowIndex)
@@ -548,6 +555,8 @@ void SScenarioMainTable::RemoveRow(int32 RowIndex)
 	}
 
 	RefreshRows();
+
+	SavePersistent();
 }
 
 void SScenarioMainTable::UpdateEditingBuffer(int32 ColumnIndex, const FString& NewValue)
@@ -590,6 +599,18 @@ void SScenarioMainTable::GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) 
 
 	const TArray<FText> Texts = AlgorithmRows[RowIndex].ToTextArray();
 	OutColumns.Append(Texts);
+}
+
+void SScenarioMainTable::GetSelectedAlgorithmNames(TArray<FString>& OutNames) const
+{
+	OutNames.Reset();
+	for (int32 i = 0; i < SelectedRows.Num(); ++i)
+	{
+		if (SelectedRows[i] && AlgorithmRows.IsValidIndex(i))
+		{
+			OutNames.Add(AlgorithmRows[i].AlgorithmName);
+		}
+	}
 }
 
 TArray<FText> SScenarioMainTable::FAlgorithmEntry::ToTextArray() const

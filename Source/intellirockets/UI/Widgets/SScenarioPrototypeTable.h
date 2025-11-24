@@ -25,6 +25,7 @@ public:
 	// Summary helpers
 	void GetSelectedRowIndices(TArray<int32>& OutIndices) const;
 	void GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) const;
+	void GetSelectedPrototypeNames(TArray<FString>& OutNames) const;
 
 	// 持久化：保存/加载当前表格内容（根据 DataPresetIndex 区分感知/决策）
 	void SavePersistent() const;

@@ -29,6 +29,7 @@
 #include "Engine/PostProcessVolume.h"
 #include "TimerManager.h"
 #include "Actors/MockMissileActor.h"
+#include "Actors/RadarJammerActor.h"
 #include "Components/InputComponent.h"
 #include "InputCoreTypes.h"
 #include "Blueprint/UserWidget.h"
@@ -1211,7 +1212,14 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: Spawned %d blue units (DensityIndex=%d)."), ActiveBlueUnits.Num(), Config.DensityIndex);
-RefreshBlueMonitor();
+	
+	// 如果选择了电磁干扰（CountermeasureIndices包含0），在蓝方目标附近生成雷达干扰区域
+	if (Config.CountermeasureIndices.Contains(0))
+	{
+		SpawnRadarJammers(World);
+	}
+	
+	RefreshBlueMonitor();
 }
 
 void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
@@ -1230,6 +1238,9 @@ void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
 	}
 	ActiveBlueUnits.Reset();
 	NextTargetCursor = 0;
+	
+	// 清除雷达干扰区域
+	ClearRadarJammers();
 
 	for (TWeakObjectPtr<AMockMissileActor>& MissilePtr : ActiveMissiles)
 	{
@@ -1781,11 +1792,11 @@ bool UScenarioMenuSubsystem::FireSingleMissile(bool bFromAutoFire /*= false*/)
 	CleanupMissiles();
 	RebuildViewSequence();
 
+	// 尝试选择一个目标，但不强制要求（允许为nullptr，导弹会在视野内自动搜索）
 	AActor* Target = SelectNextBlueTarget();
 	if (!Target)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("FireSingleMissile: no valid blue unit target available."));
-		return false;
+		UE_LOG(LogTemp, Log, TEXT("FireSingleMissile: no initial target, missile will search for targets in view."));
 	}
 
 	AMockMissileActor* Missile = SpawnMissile(World, Target, bFromAutoFire);
@@ -1810,21 +1821,43 @@ void UScenarioMenuSubsystem::FireMultipleMissiles(int32 Count)
 	BeginMissileAutoFire(SafeCount);
 }
 
-AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* Target, bool bFromAutoFire)
+AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* Target, bool bFromAutoFire, const FVector* OverrideLocation, const FRotator* OverrideRotation)
 {
-	if (!World || !Target)
+	if (!World)
 	{
 		return nullptr;
 	}
+	// 允许Target为nullptr，导弹会在视野内自动搜索目标
 
 	UStaticMesh* MissileMesh = ResolveMissileMesh();
 	UMaterialInterface* MissileMaterial = ResolveMissileMaterial();
 
 	FRotator Facing;
-	const FVector StartLocation = GetPlayerStartLocation(Facing);
-	FVector SpawnLocation = StartLocation + Facing.Vector() * 120.f + FVector(0.f, 0.f, 120.f);
-	const FVector TargetDirection = (Target->GetActorLocation() - SpawnLocation).GetSafeNormal();
-	const FRotator LaunchRotation = TargetDirection.IsNearlyZero() ? Facing : TargetDirection.Rotation();
+	const FVector DefaultStart = GetPlayerStartLocation(Facing);
+	FVector SpawnLocation = DefaultStart + Facing.Vector() * 120.f + FVector(0.f, 0.f, 120.f);
+	FRotator LaunchRotation = Facing;
+
+	if (OverrideLocation)
+	{
+		SpawnLocation = *OverrideLocation;
+	}
+	if (OverrideRotation)
+	{
+		LaunchRotation = *OverrideRotation;
+	}
+	else if (OverrideLocation && Target)
+	{
+		const FVector Dir = (Target->GetActorLocation() - SpawnLocation).GetSafeNormal();
+		if (!Dir.IsNearlyZero())
+		{
+			LaunchRotation = Dir.Rotation();
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("SpawnMissile: PlayerStart direction = %s, LaunchRotation = %s"), 
+			*Facing.ToString(), *LaunchRotation.ToString());
+	}
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
@@ -1841,13 +1874,25 @@ AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* T
 	}
 
 	Missile->InitializeMissile(Target, 4500.f, 45.f);
+	
+	// 设置算法配置，决定是否启用反制等功能
+	if (bHasActiveScenarioConfig)
+	{
+		Missile->SetAlgorithmConfig(ActiveScenarioConfig.SelectedAlgorithmNames, ActiveScenarioConfig.SelectedPrototypeNames);
+		Missile->SetSplitGeneration(0);
+		const bool bElectromagnetic = ActiveScenarioConfig.CountermeasureIndices.Contains(0);
+		Missile->SetInterferenceMode(bElectromagnetic);
+	}
+	
 	Missile->OnImpact.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileImpact);
 	Missile->OnExpired.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileExpired);
 
 	ActiveMissiles.Add(Missile);
 	RecordMissileLaunch(Missile, Target, SpawnLocation, bFromAutoFire);
 
-	UE_LOG(LogTemp, Log, TEXT("SpawnMissile: launched missile toward %s from %s"), *Target->GetName(), *SpawnLocation.ToString());
+	UE_LOG(LogTemp, Log, TEXT("SpawnMissile: launched missile %s from %s"), 
+		Target ? *FString::Printf(TEXT("toward %s"), *Target->GetName()) : TEXT("(no initial target, will search)"), 
+		*SpawnLocation.ToString());
 	RebuildViewSequence();
 	return Missile;
 }
@@ -1875,6 +1920,145 @@ AActor* UScenarioMenuSubsystem::SelectNextBlueTarget()
 	}
 
 	return nullptr;
+}
+
+void UScenarioMenuSubsystem::GetActiveBlueUnits(TArray<AActor*>& OutUnits) const
+{
+	OutUnits.Reset();
+	for (const TWeakObjectPtr<AActor>& Ptr : ActiveBlueUnits)
+	{
+		if (AActor* Unit = Ptr.Get())
+		{
+			if (!Unit->IsPendingKillPending())
+			{
+				OutUnits.Add(Unit);
+			}
+		}
+	}
+}
+
+void UScenarioMenuSubsystem::GetActiveRadarJammers(TArray<ARadarJammerActor*>& OutJammers) const
+{
+	OutJammers.Reset();
+	for (const TWeakObjectPtr<ARadarJammerActor>& Ptr : ActiveRadarJammers)
+	{
+		if (ARadarJammerActor* Jammer = Ptr.Get())
+		{
+			if (!Jammer->IsPendingKillPending())
+			{
+				OutJammers.Add(Jammer);
+			}
+		}
+	}
+}
+
+void UScenarioMenuSubsystem::SpawnRadarJammers(UWorld* World)
+{
+	if (!World)
+	{
+		return;
+	}
+
+	ClearRadarJammers();
+
+	// 获取所有有效的蓝方单位
+	TArray<AActor*> ValidBlueUnits;
+	for (const TWeakObjectPtr<AActor>& Ptr : ActiveBlueUnits)
+	{
+		if (AActor* Unit = Ptr.Get())
+		{
+			if (!Unit->IsPendingKillPending())
+			{
+				ValidBlueUnits.Add(Unit);
+			}
+		}
+	}
+
+	if (ValidBlueUnits.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnRadarJammers: No valid blue units found."));
+		return;
+	}
+
+	// 随机选择一个蓝方目标，在其附近生成雷达干扰区域
+	const int32 NumJammers = FMath::Min(1, ValidBlueUnits.Num());
+	TArray<int32> SelectedIndices;
+	const FString CurrentMapName = World->GetMapName();
+	const bool bIsDesertMap = CurrentMapName.Contains(TEXT("Desert")) || CurrentMapName.Contains(TEXT("沙漠"));
+	
+	for (int32 i = 0; i < NumJammers; ++i)
+	{
+		int32 RandomIndex;
+		do
+		{
+			RandomIndex = FMath::RandRange(0, ValidBlueUnits.Num() - 1);
+		} while (SelectedIndices.Contains(RandomIndex));
+		
+		SelectedIndices.Add(RandomIndex);
+		AActor* TargetUnit = ValidBlueUnits[RandomIndex];
+		FVector UnitLocation = TargetUnit->GetActorLocation();
+
+		// 设置干扰半径（5000-8000厘米），沙漠地图增大10倍
+		float JammerRadius = FMath::RandRange(5000.f, 8000.f);
+		if (bIsDesertMap)
+		{
+			JammerRadius = JammerRadius * 10.f * 0.25f;
+		}
+		
+		// 让蓝方目标处于球体区域靠边缘的位置
+		// 计算位置：目标距离干扰源中心约80-90%的半径距离
+		float TargetOffsetRatio = FMath::RandRange(0.8f, 0.9f); // 目标在半径的80-90%位置
+		float TargetOffsetDistance = JammerRadius * TargetOffsetRatio;
+		
+		// 随机选择一个方向
+		float Angle = FMath::RandRange(0.f, 2.f * UE_PI);
+		
+		// 计算干扰源位置：目标位置 - 偏移方向 * 偏移距离
+		// 这样目标就会在干扰区域的边缘
+		FVector OffsetDirection = FVector(
+			FMath::Cos(Angle),
+			FMath::Sin(Angle),
+			0.f
+		);
+		FVector JammerLocation = UnitLocation - OffsetDirection * TargetOffsetDistance;
+		// 使用目标单位的高度，而不是放在地面上
+		JammerLocation.Z = UnitLocation.Z;
+
+		// 生成雷达干扰区域
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		
+		ARadarJammerActor* Jammer = World->SpawnActor<ARadarJammerActor>(JammerLocation, FRotator::ZeroRotator, SpawnParams);
+		if (Jammer)
+		{
+			Jammer->SetJammerRadius(JammerRadius);
+			ActiveRadarJammers.Add(Jammer);
+			
+			// 验证目标是否在干扰区域内（应该在边缘）
+			float DistanceToTarget = FVector::Dist(JammerLocation, UnitLocation);
+			float DistanceRatio = DistanceToTarget / JammerRadius;
+			
+			UE_LOG(LogTemp, Log, TEXT("SpawnRadarJammers: Created jammer at %s with radius %.2f cm near target %s (target distance: %.2f cm, ratio: %.2f%%)"), 
+				*JammerLocation.ToString(), JammerRadius, *TargetUnit->GetName(), DistanceToTarget, DistanceRatio * 100.f);
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("SpawnRadarJammers: Spawned %d radar jammers"), ActiveRadarJammers.Num());
+}
+
+void UScenarioMenuSubsystem::ClearRadarJammers()
+{
+	for (TWeakObjectPtr<ARadarJammerActor>& Ptr : ActiveRadarJammers)
+	{
+		if (ARadarJammerActor* Jammer = Ptr.Get())
+		{
+			if (!Jammer->IsPendingKillPending())
+			{
+				Jammer->Destroy();
+			}
+		}
+	}
+	ActiveRadarJammers.Reset();
 }
 
 void UScenarioMenuSubsystem::HandleMissileImpact(AMockMissileActor* Missile, AActor* HitActor)

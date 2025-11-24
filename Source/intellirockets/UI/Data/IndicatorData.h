@@ -20,11 +20,21 @@ struct FIndicatorInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FString Description;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FString> AlgorithmNames;  // 关联的算法名称列表
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FString> PrototypeNames;  // 关联的分系统名称列表
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Level;  // "algorithm" 或 "system"，表示算法级还是系统级
+
 	FIndicatorInfo()
 		: Id(TEXT(""))
 		, Name(TEXT(""))
 		, NameEn(TEXT(""))
 		, Description(TEXT(""))
+		, Level(TEXT(""))
 	{
 	}
 };
