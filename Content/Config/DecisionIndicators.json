@@ -1,700 +1,456 @@
 {
   "categories": [
     {
-      "name": "决策算法指标",
+      "id": "alg_jammer",
+      "name": "干扰对抗算法",
       "subCategories": [
         {
-          "name": "性能性",
+          "id": "alg_jammer_perf",
+          "name": "性能指标",
           "indicators": [
-            {
-              "id": "3.4.1.1",
-              "name": "性能性-决策生成速度",
-              "nameEn": "Decision Generation Speed",
-              "description": "从感知输入到生成决策的时间，反映实时性。",
-              "targetValue": 0.5,
-              "higherIsBetter": false,
-              "unit": " s",
-              "evaluationRemark": "以自动发射间隔/飞行时间估算决策生成速度。",
-              "algorithmNames": ["自适应航迹规划", "多传感器融合决策"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.1.3",
-              "name": "性能性-路径规划精度",
-              "nameEn": "Path Planning Accuracy",
-              "description": "规划路径的准确性和可执行性。",
-              "targetValue": 85.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于导弹命中率，反映路径规划的准确性和可执行性。",
-              "algorithmNames": ["自适应航迹规划", "航迹重规划", "轨迹优化算法"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.1.4",
-              "name": "性能性-全局最优路径规划精度",
-              "nameEn": "Global Optimal Path Planning Accuracy",
-              "description": "决策算法规划的路径在多目标优化下的准确性。",
-              "targetValue": 75.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映全局最优路径规划的准确性。",
-              "algorithmNames": ["轨迹优化算法"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.1.5",
-              "name": "性能性-资源分配优化精度",
-              "nameEn": "Resource Allocation Optimization Accuracy",
-              "description": "在有限资源下，决策算法最优分配资源的准确性。",
-              "targetValue": 1.5,
-              "higherIsBetter": true,
-              "unit": "",
-              "evaluationRemark": "基于每次命中平均摧毁数，反映资源分配的优化精度。",
-              "algorithmNames": ["HL分配算法"],
-              "level": "algorithm"
-            }
-          ]
-        },
-        {
-          "name": "可解释性",
-          "indicators": [
-            {
-              "id": "3.4.1.2",
-              "name": "可解释性-目标优先级设定",
-              "nameEn": "Target Prioritization Accuracy",
-              "description": "根据战术需求设定攻击或防守目标的准确性。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映目标优先级设定的准确性。"
-            }
-          ]
-        },
-        {
-          "name": "安全性",
-          "indicators": [
-            {
-              "id": "3.4.1.6",
-              "name": "安全性-敌方策略反制成功率",
-              "nameEn": "Enemy Strategy Countermeasure Success Rate",
-              "description": "决策算法成功识别并反制敌方策略的比例。",
-              "targetValue": 85.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于导弹命中率。"
-            },
-            {
-              "id": "3.4.3.5",
-              "name": "安全性-敌方行为预测效能",
-              "nameEn": "Enemy Behavior Prediction Efficiency",
-              "description": "预测敌方行为的准确性和效率。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映预测敌方行为的准确性和效率。"
-            }
-          ]
-        },
-        {
-          "name": "可靠性",
-          "indicators": [
-            {
-              "id": "3.4.1.7",
-              "name": "可靠性-多智能体协同决策成功率",
-              "nameEn": "Multi-agent Cooperative Decision-making Success Rate",
-              "description": "群体算法成功协同多个智能体共同完成任务的比例。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率，反映多智能体协同决策的成功率。"
-            },
-            {
-              "id": "3.4.3.6",
-              "name": "可靠性-多智能体任务完成时间",
-              "nameEn": "Multi-agent Task Completion Time",
-              "description": "多个智能体完成任务所需的时间。",
-              "targetValue": 1.2,
-              "higherIsBetter": false,
-              "unit": " s",
-              "evaluationRemark": "基于自动发射导弹的平均飞行时间，反映多智能体任务完成的效率。"
-            }
-          ]
-        },
-        {
-          "name": "功能性",
-          "indicators": [
-            {
-              "id": "3.4.1.8",
-              "name": "功能性-任务分配协调性",
-              "nameEn": "Task Allocation Coordination",
-              "description": "多个智能体之间的任务分配和协调的精确度。",
-              "targetValue": 50.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射比例，反映多个智能体之间任务分配和协调的精确度。"
-            }
-          ]
-        },
-        {
-          "name": "鲁棒性",
-          "indicators": [
-            {
-              "id": "3.4.2.1",
-              "name": "鲁棒性-动态战术调整能力",
-              "nameEn": "Dynamic Tactical Adjustment Intelligence",
-              "description": "根据实时战场态势调整战术决策的智能化水平。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射在不同目标选择下的命中率，反映动态调整战术的能力。"
-            },
-            {
-              "id": "3.4.2.3",
-              "name": "鲁棒性-策略演化能力",
-              "nameEn": "Strategy Evolution Capability",
-              "description": "决策算法能够根据环境的变化或新获得的信息调整其行为策略的能力。",
-              "targetValue": 70.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率与手动发射命中率的对比，反映策略适应和演化的能力。"
-            }
-          ]
-        },
-        {
-          "name": "智能性",
-          "indicators": [
-            {
-              "id": "3.4.2.2",
-              "name": "智能性-敌方行动预测智能",
-              "nameEn": "Enemy Action Prediction Intelligence",
-              "description": "算法预测敌方下一步行动或策略的智能水平。",
-              "targetValue": 75.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映预测敌方行动和选择最佳攻击时机的智能水平。"
-            },
-            {
-              "id": "3.4.2.4",
-              "name": "智能性-多目标优化智能",
-              "nameEn": "Multi-objective Optimization Intelligence",
-              "description": "决策算法在多目标环境中智能选择最优决策的能力。",
-              "targetValue": 1.8,
-              "higherIsBetter": true,
-              "unit": "",
-              "evaluationRemark": "基于每次命中平均摧毁数，反映在多目标环境中智能选择最优攻击策略的能力。"
-            },
-            {
-              "id": "3.4.2.6",
-              "name": "智能性-博弈均衡智能",
-              "nameEn": "Game-theoretical Equilibrium Intelligence",
-              "description": "决策算法通过博弈理论模型智能选择最佳对抗策略。",
-              "targetValue": 78.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映通过博弈理论选择最佳对抗策略的智能水平。"
-            },
-            {
-              "id": "3.4.2.7",
-              "name": "智能性-群体协作智能",
-              "nameEn": "Swarm Collaboration Intelligence",
-              "description": "群体算法通过智能协作优化整体决策能力的表现。",
-              "targetValue": 82.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率，反映群体智能体通过协作优化整体决策的表现。"
-            },
-            {
-              "id": "3.4.2.8",
-              "name": "智能性-协同决策学习智能",
-              "nameEn": "Collaborative Decision Learning Intelligence",
-              "description": "群体算法在任务执行过程中通过学习提高智能体间协作决策的智能水平。",
-              "targetValue": 60.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射比例与命中率的综合评估，反映协同决策学习的智能水平。"
-            }
-          ]
-        },
-        {
-          "name": "未来可扩展性",
-          "indicators": [
-            {
-              "id": "3.4.2.5",
-              "name": "未来可扩展性-对抗学习智能",
-              "nameEn": "Adversarial Learning Intelligence",
-              "description": "决策算法通过学习敌方行动策略，不断提升自身反制策略的智能化水平。",
-              "targetValue": 85.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于整体命中率，反映通过学习提升反制策略的智能水平。"
-            }
-          ]
-        },
-        {
-          "name": "效能性",
-          "indicators": [
-            {
-              "id": "3.4.3.1",
-              "name": "效能性-资源使用效能",
-              "nameEn": "Resource Utilization Efficiency",
-              "description": "系统在任务执行过程中最大化利用资源的效率。",
-              "targetValue": 1.6,
-              "higherIsBetter": true,
-              "unit": "",
-              "evaluationRemark": "基于每次命中平均摧毁数，反映资源使用的最大化效率。",
-              "algorithmNames": ["HL分配算法"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.3.2",
-              "name": "效能性-任务完成率",
-              "nameEn": "Task Completion Rate",
-              "description": "决策算法在执行预定任务时的成功完成率。",
-              "targetValue": 95.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于导弹命中率。",
-              "algorithmNames": ["HL分配算法"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.3.8",
-              "name": "效能性-分裂触发成功率",
-              "nameEn": "Split Trigger Success Rate",
-              "description": "满足条件时导弹成功触发分裂的比例，反映 HL 分配算法的触发效果。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "分裂成功次数 / 分裂尝试次数。",
-              "algorithmNames": ["HL分配算法"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.3.9",
-              "name": "效能性-分裂子弹命中率",
-              "nameEn": "Split Child Hit Rate",
-              "description": "由分裂产生的导弹命中目标的占比。",
-              "targetValue": 60.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "分裂子弹命中数 / 分裂子弹总数。",
-              "algorithmNames": ["HL分配算法"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.3.10",
-              "name": "效能性-分裂协同命中数",
-              "nameEn": "Split Coordination Hits",
-              "description": "一次分裂覆盖到的不同目标数量，衡量协同行动效果。",
-              "targetValue": 2.0,
-              "higherIsBetter": true,
-              "unit": "",
-              "evaluationRemark": "平均每次分裂命中目标数。",
-              "algorithmNames": ["HL分配算法"],
-              "level": "algorithm"
-            },
             {
               "id": "3.4.3.11",
-              "name": "效能性-干扰触发距离裕度",
-              "nameEn": "Interference Trigger Margin",
-              "description": "干扰对抗算法在导弹进入干扰区域前触发反制的距离裕度，占基础半径的比例。",
+              "name": "抗干扰精度",
+              "nameEn": "Anti-jamming Accuracy",
+              "description": "导弹在进入干扰区域前保持有效反制裕度的比例，反映干扰预测的精度。",
               "targetValue": 20.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "平均触发距离相对于基础半径的超前比例，≥20% 说明在区域外即可明显缩小干扰球。",
+              "evaluationRemark": "平均触发距离相对于基础半径的超前比例。",
               "algorithmNames": ["干扰对抗算法"],
-              "level": "algorithm"
+              "prototypeNames": ["干扰对抗分系统"]
+            },
+            {
+              "id": "3.5.4.2",
+              "name": "信号恢复速度",
+              "nameEn": "Signal Recovery Speed",
+              "description": "干扰触发后恢复至稳定控制状态所需的平均时间，越短表示响应越迅速。",
+              "targetValue": 0.5,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均干扰响应延迟≤0.5秒。",
+              "algorithmNames": ["干扰对抗算法"],
+              "prototypeNames": ["干扰对抗分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_jammer_int",
+          "name": "智能指标",
+          "indicators": [
+            {
+              "id": "9.1.1.6b",
+              "name": "自适应频率选择",
+              "nameEn": "Adaptive Frequency Selection",
+              "description": "面对频谱干扰时动态选择可用频段的成功率。",
+              "targetValue": 98.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "频率调整成功率≥98%。",
+              "algorithmNames": ["干扰对抗算法"],
+              "prototypeNames": ["干扰对抗分系统"]
+            },
+            {
+              "id": "3.4.2.5",
+              "name": "威胁等级评估",
+              "nameEn": "Threat Ranking Intelligence",
+              "description": "对不同干扰威胁进行分级评估的准确性。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "根据综合命中率给出的威胁分类准确度。",
+              "algorithmNames": ["干扰对抗算法"],
+              "prototypeNames": ["干扰对抗分系统"]
+            },
+            {
+              "id": "9.1.1.6a",
+              "name": "干扰模式识别智能",
+              "nameEn": "Jamming Pattern Recognition",
+              "description": "识别不同干扰模式并及时上报的准确率。",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "干扰信号检测准确率≥95%。",
+              "algorithmNames": ["干扰对抗算法"],
+              "prototypeNames": ["干扰对抗分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_jammer_eff",
+          "name": "效能指标",
+          "indicators": [
+            {
+              "id": "3.5.4.1",
+              "name": "系统响应时间",
+              "nameEn": "System Response Time",
+              "description": "导弹进入威胁区后能够在0.5秒内启动反制的比例。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "0.5秒内满足高度/距离条件并触发干扰的比例。",
+              "algorithmNames": ["干扰对抗算法"],
+              "prototypeNames": ["干扰对抗分系统"]
             },
             {
               "id": "3.4.3.12",
-              "name": "效能性-干扰抑制成功率",
-              "nameEn": "Interference Suppression Success Rate",
-              "description": "干扰对抗算法成功抑制导弹命中目标的比例。",
-              "targetValue": 70.0,
+              "name": "抗干扰成功率",
+              "nameEn": "Anti-jamming Success Rate",
+              "description": "进入干扰区域后保持目标或迫使敌弹脱靶的概率。",
+              "targetValue": 80.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "启用干扰对抗算法后，导弹在干扰区域内失去目标或未命中的比例。",
+              "evaluationRemark": "基于分裂/反制统计，衡量抗干扰成功率。",
               "algorithmNames": ["干扰对抗算法"],
-              "level": "algorithm"
+              "prototypeNames": ["干扰对抗分系统"]
             },
             {
-              "id": "3.4.3.13",
-              "name": "效能性-反制半径缩减率",
-              "nameEn": "Countermeasure Radius Reduction Rate",
-              "description": "反制激活后干扰区域半径的平均缩减比例。",
-              "targetValue": 60.0,
+              "id": "3.5.3.4",
+              "name": "系统资源消耗",
+              "nameEn": "Resource Consumption Control",
+              "description": "干扰过程中的资源受控率，值越高表示能以更少消耗维持防护。",
+              "targetValue": 77.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "反制激活时干扰区域半径相对于基础半径的平均缩减百分比，反映反制强度。",
+              "evaluationRemark": "基于自动发射命中率衡量资源受控水平。",
               "algorithmNames": ["干扰对抗算法"],
-              "level": "algorithm"
+              "prototypeNames": ["干扰对抗分系统"]
             },
             {
-              "id": "3.4.3.3",
-              "name": "效能性-路径规划执行时间",
-              "nameEn": "Path Planning Execution Time",
-              "description": "决策算法生成并执行最优路径所需的时间。",
-              "targetValue": 1.0,
-              "higherIsBetter": false,
+              "id": "3.5.4.4",
+              "name": "系统恢复效能",
+              "nameEn": "Recovery Effectiveness Index",
+              "description": "综合考虑干扰持续与稳定性，值越高表示系统恢复越可靠。",
+              "targetValue": 2.0,
+              "higherIsBetter": true,
               "unit": " s",
-              "evaluationRemark": "以导弹平均飞行时间近似路径执行时长。",
-              "algorithmNames": ["轨迹优化算法"],
-              "level": "algorithm"
-            },
-            {
-              "id": "3.4.3.4",
-              "name": "效能性-反制策略执行效能",
-              "nameEn": "Countermeasure Execution Efficiency",
-              "description": "对抗策略生成和执行的时间与计算资源消耗。",
-              "targetValue": 0.8,
-              "higherIsBetter": false,
-              "unit": " s",
-              "evaluationRemark": "基于导弹平均飞行时间，反映反制策略生成和执行的效率。",
-              "algorithmNames": ["轨迹优化算法"],
-              "level": "algorithm"
+              "evaluationRemark": "指数越高表示在干扰持续阶段仍能保持稳定输出。",
+              "algorithmNames": ["干扰对抗算法"],
+              "prototypeNames": ["干扰对抗分系统"]
             }
           ]
         }
       ]
     },
     {
-      "name": "决策分系统指标",
+      "id": "alg_trajectory",
+      "name": "轨迹规划算法",
       "subCategories": [
         {
-          "name": "功能性",
+          "id": "alg_trajectory_perf",
+          "name": "性能指标",
           "indicators": [
             {
-              "id": "3.5.1.1",
-              "name": "功能性-多任务协调能力",
-              "nameEn": "Multi-task Coordination Capability",
-              "description": "决策分系统在多任务场景下协调不同智能体执行任务的能力。",
-              "targetValue": 70.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射比例，反映多任务场景下协调不同智能体执行任务的能力。"
-            },
-            {
-              "id": "3.5.1.6",
-              "name": "功能性-层次对抗策略执行成功率",
-              "nameEn": "Multi-level Adversarial Strategy Execution Success Rate",
-              "description": "在多层次对抗中成功执行反制策略的比例。",
-              "targetValue": 82.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映在多层次对抗中成功执行反制策略的比例。"
-            }
-          ]
-        },
-        {
-          "name": "性能性",
-          "indicators": [
-            {
-              "id": "3.5.1.2",
-              "name": "性能性-全局决策优化能力",
-              "nameEn": "Global Decision Optimization Capability",
-              "description": "系统在多目标场景中进行全局最优决策的能力。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于整体命中率，反映在多目标场景中进行全局最优决策的能力。"
-            },
-            {
-              "id": "3.5.1.3",
-              "name": "性能性-任务切换响应速度",
-              "nameEn": "Task Switching Response Time",
-              "description": "在任务优先级变化时系统切换任务的速度。",
-              "targetValue": 0.6,
-              "higherIsBetter": false,
-              "unit": " s",
-              "evaluationRemark": "基于自动发射间隔，反映任务切换的响应速度。"
-            },
-            {
-              "id": "3.5.1.5",
-              "name": "性能性-全局优化任务分配精度",
-              "nameEn": "Global Optimization Task Allocation Accuracy",
-              "description": "系统在多个任务环境中最优分配任务的精度。",
-              "targetValue": 75.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率，反映在多个任务环境中最优分配任务的精度。"
-            }
-          ]
-        },
-        {
-          "name": "可靠性",
-          "indicators": [
-            {
-              "id": "3.5.1.4",
-              "name": "可靠性-故障恢复能力",
-              "nameEn": "Fault Recovery Capability",
-              "description": "在部分系统失效情况下，决策分系统恢复正常决策功能的能力。",
-              "targetValue": 85.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于整体命中率，反映在系统失效情况下恢复正常决策功能的能力。"
-            }
-          ]
-        },
-        {
-          "name": "鲁棒性",
-          "indicators": [
-            {
-              "id": "3.5.1.7",
-              "name": "鲁棒性-多智能体协同效能",
-              "nameEn": "Multi-agent Coordination Efficiency",
-              "description": "群体决策分系统高效协调多个智能体执行任务的能力。",
-              "targetValue": 78.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率与任务完成效率的综合评估，反映多智能体协同效能。"
-            }
-          ]
-        },
-        {
-          "name": "未来可扩展性",
-          "indicators": [
-            {
-              "id": "3.5.2.1",
-              "name": "未来可扩展性-系统自学习能力",
-              "nameEn": "Self-learning Capability",
-              "description": "决策分系统通过博弈对抗不断提升自身决策效率和准确性的能力。",
-              "targetValue": 83.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于整体命中率，反映通过博弈对抗不断提升自身决策效率和准确性的能力。"
-            }
-          ]
-        },
-        {
-          "name": "智能性",
-          "indicators": [
-            {
-              "id": "3.5.2.2",
-              "name": "智能性-协作决策智能",
-              "nameEn": "Collaborative Decision Intelligence",
-              "description": "多智能体协同作战时，系统生成一致性决策的智能水平。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率，反映多智能体协同作战时生成一致性决策的智能水平。"
-            },
-            {
-              "id": "3.5.2.5",
-              "name": "智能性-策略调整智能",
-              "nameEn": "Strategy Adjustment Intelligence",
-              "description": "决策分系统在对抗环境中根据实时战场态势智能调整反制策略的能力。",
-              "targetValue": 79.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映在对抗环境中根据实时战场态势智能调整反制策略的能力。",
-              "prototypeNames": ["躲避对抗分系统"],
-              "level": "system"
-            },
-            {
-              "id": "3.5.2.6",
-              "name": "智能性-集群协作智能",
-              "nameEn": "Swarm Collaboration Intelligence",
-              "description": "决策分系统智能地协调多个智能体协同完成任务的能力。",
-              "targetValue": 81.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率与任务完成率的综合评估，反映智能协调多个智能体协同完成任务的能力。",
-              "prototypeNames": ["躲避对抗分系统"],
-              "level": "system"
-            }
-          ]
-        },
-        {
-          "name": "可解释性",
-          "indicators": [
-            {
-              "id": "3.5.2.3",
-              "name": "可解释性-全局态势感知智能",
-              "nameEn": "Global Situational Awareness Intelligence",
-              "description": "系统对全局态势的理解和智能决策支持。",
-              "targetValue": 85.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于整体命中率，反映对全局态势的理解和智能决策支持。",
-              "prototypeNames": ["躲避对抗分系统"],
-              "level": "system"
-            },
-            {
-              "id": "3.5.2.4",
-              "name": "可解释性-全局任务分解智能",
-              "nameEn": "Global Task Decomposition Intelligence",
-              "description": "决策分系统智能分解全局复杂任务为多个可执行的子任务，并协调智能体执行。",
-              "targetValue": 72.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射比例，反映智能分解全局复杂任务为多个可执行子任务并协调智能体执行的能力。",
-              "prototypeNames": ["躲避对抗分系统"],
-              "level": "system"
-            }
-          ]
-        },
-        {
-          "name": "效能性",
-          "indicators": [
-            {
-              "id": "3.5.3.1",
-              "name": "效能性-任务分配效能",
-              "nameEn": "Task Allocation Effectiveness",
-              "description": "系统在不同智能体之间分配任务的效率和合理性。",
-              "targetValue": 68.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射比例，反映在不同智能体之间分配任务的效率和合理性。"
-            },
-            {
-              "id": "3.5.3.2",
-              "name": "效能性-作战资源管理效能",
-              "nameEn": "Combat Resource Management Effectiveness",
-              "description": "在复杂战场中有效管理和调度资源的表现。",
-              "targetValue": 1.7,
-              "higherIsBetter": true,
-              "unit": "",
-              "evaluationRemark": "基于每次命中平均摧毁数，反映在复杂战场中有效管理和调度资源的表现。"
-            },
-            {
-              "id": "3.5.3.3",
-              "name": "效能性-任务完成时间",
-              "nameEn": "Task Completion Time",
-              "description": "系统完成任务所需的平均时间。",
-              "targetValue": 1.1,
-              "higherIsBetter": false,
-              "unit": " s",
-              "evaluationRemark": "基于导弹平均飞行时间，反映系统完成任务所需的平均时间。"
-            },
-            {
-              "id": "3.5.3.4",
-              "name": "效能性-决策一致性",
-              "nameEn": "Decision Consistency",
-              "description": "系统在多智能体决策中的一致性表现，避免冲突决策。",
-              "targetValue": 77.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率，反映在多智能体决策中的一致性表现，避免冲突决策。"
-            },
-            {
-              "id": "3.5.3.6",
-              "name": "效能性-集群任务执行效能",
-              "nameEn": "Swarm Task Execution Efficiency",
-              "description": "在集群任务中，决策分系统通过群体算法高效完成任务的能力。",
-              "targetValue": 80.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率与资源利用效率的综合评估，反映通过群体算法高效完成任务的能力。"
-            }
-          ]
-        },
-        {
-          "name": "HL分配协同效能",
-          "indicators": [
-            {
-              "id": "3.5.3.7",
-              "name": "系统级-多弹协同成功率",
-              "nameEn": "System Split Success Rate",
-              "description": "HL 分配分系统触发协同后实际成功生成子弹并命中的占比。",
-              "targetValue": 75.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "分裂成功次数 / 分裂尝试次数。",
-              "prototypeNames": ["躲避对抗分系统"],
-              "level": "system"
-            },
-            {
-              "id": "3.5.3.8",
-              "name": "系统级-多目标覆盖能力",
-              "nameEn": "System Split Coverage",
-              "description": "一次协同任务中由分裂导弹命中的不同目标数量。",
-              "targetValue": 2.0,
-              "higherIsBetter": true,
-              "unit": "",
-              "evaluationRemark": "平均每次分裂命中目标数。",
-              "prototypeNames": ["躲避对抗分系统"],
-              "level": "system"
-            },
-            {
-              "id": "3.5.3.9",
-              "name": "系统级-子弹贡献率",
-              "nameEn": "System Split Contribution Rate",
-              "description": "由分裂子弹带来的命中占比，衡量协同分系统的整体效益。",
-              "targetValue": 60.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "分裂子弹命中数 / 分裂子弹总数。",
-              "prototypeNames": ["躲避对抗分系统"],
-              "level": "system"
-            }
-          ]
-        },
-        {
-          "name": "干扰对抗表现",
-          "indicators": [
-            {
-              "id": "3.5.4.1",
-              "name": "系统级-干扰响应及时率",
-              "nameEn": "Interference Response Timeliness",
-              "description": "检测到导弹后在0.5秒内、并保持高度/距离条件下启动干扰的比例。",
-              "targetValue": 85.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "导弹进入检测半径后0.5秒内、且高度差≤1.5km时即开始干扰的比例。",
-              "prototypeNames": ["干扰对抗分系统"],
-              "level": "system"
-            },
-            {
-              "id": "3.5.4.2",
-              "name": "系统级-干扰响应延迟",
-              "nameEn": "Interference Response Delay",
-              "description": "从首次看到目标到干扰真正生效的平均延迟，考虑高度与距离。",
+              "id": "3.4.1.1",
+              "name": "决策生成速度",
+              "nameEn": "Decision Generation Speed",
+              "description": "从接收态势到输出航迹指令的平均耗时。",
               "targetValue": 0.5,
               "higherIsBetter": false,
               "unit": " s",
-              "evaluationRemark": "平均检测到导弹到干扰启动的时间差，应≤0.5秒，同时保证高度/距离条件满足。",
-              "prototypeNames": ["干扰对抗分系统"],
-              "level": "system"
+              "evaluationRemark": "以自动发射间隔/飞行时间估算决策生成速度。",
+              "algorithmNames": ["轨迹规划算法"],
+              "prototypeNames": ["轨迹规划分系统"]
             },
             {
-              "id": "3.5.4.3",
-              "name": "系统级-干扰覆盖成功率",
-              "nameEn": "Interference Coverage Success Rate",
-              "description": "干扰对抗分系统成功覆盖并影响导弹的比例。",
-              "targetValue": 80.0,
+              "id": "3.4.1.3",
+              "name": "路径规划精度",
+              "nameEn": "Path Planning Accuracy",
+              "description": "生成路径与最优路径的一致程度。",
+              "targetValue": 85.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "进入干扰区域的导弹中，成功被干扰（失去目标或未命中）的比例。",
-              "prototypeNames": ["干扰对抗分系统"],
-              "level": "system"
-            },
-            {
-              "id": "3.5.4.4",
-              "name": "系统级-干扰持续时间",
-              "nameEn": "Interference Duration",
-              "description": "干扰对抗分系统对单个目标实施干扰的平均持续时间。",
-              "targetValue": 2.0,
-              "higherIsBetter": true,
-              "unit": " s",
-              "evaluationRemark": "从干扰启动到导弹离开干扰区域或命中的平均时间，反映干扰持续性。",
-              "prototypeNames": ["干扰对抗分系统"],
-              "level": "system"
+              "evaluationRemark": "基于整体命中率评估路径可执行性。",
+              "algorithmNames": ["轨迹规划算法"],
+              "prototypeNames": ["轨迹规划分系统"]
             }
           ]
         },
         {
-          "name": "安全性",
+          "id": "alg_trajectory_int",
+          "name": "智能指标",
           "indicators": [
             {
-              "id": "3.5.3.5",
-              "name": "安全性-策略反制效能",
-              "nameEn": "Counter-strategy Execution Efficiency",
-              "description": "反制策略的生成和执行效能。",
-              "targetValue": 0.9,
+              "id": "3.4.2.1",
+              "name": "动态战术调整能力",
+              "nameEn": "Dynamic Tactical Adaptation",
+              "description": "面对突发威胁时自动调整航迹的能力。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于不同目标选择下的命中率衡量调整效率。",
+              "algorithmNames": ["轨迹规划算法"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_eff",
+          "name": "效能指标",
+          "indicators": [
+            {
+              "id": "3.4.3.3",
+              "name": "路径规划执行时间",
+              "nameEn": "Route Execution Time",
+              "description": "生成航迹并完成执行的平均时间。",
+              "targetValue": 1.0,
               "higherIsBetter": false,
               "unit": " s",
-              "evaluationRemark": "基于导弹平均飞行时间，反映反制策略的生成和执行效能。"
+              "evaluationRemark": "以导弹平均飞行时间近似路径执行时长。",
+              "algorithmNames": ["轨迹规划算法"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alg_evasion",
+      "name": "躲避对抗算法",
+      "subCategories": [
+        {
+          "id": "alg_evasion_perf",
+          "name": "性能指标",
+          "indicators": [
+            {
+              "id": "3.4.1.4",
+              "name": "全局最优路径规划精度",
+              "nameEn": "Global Optimal Path Accuracy",
+              "description": "在全局规划中保持最优绕飞与命中兼顾的能力。",
+              "targetValue": 75.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于直接命中率衡量全局最优路径的执行效果。",
+              "algorithmNames": ["躲避对抗算法"],
+              "prototypeNames": ["躲避对抗分系统"]
+            },
+            {
+              "id": "3.4.1.6",
+              "name": "敌方策略反制成功率",
+              "nameEn": "Enemy Strategy Counter Rate",
+              "description": "在拦截或诱导策略下成功规避敌方的比例。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于导弹命中率衡量反制策略成功率。",
+              "algorithmNames": ["躲避对抗算法"],
+              "prototypeNames": ["躲避对抗分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_evasion_int",
+          "name": "智能指标",
+          "indicators": [
+            {
+              "id": "3.4.2.2",
+              "name": "敌方行动预测智能",
+              "nameEn": "Enemy Action Prediction",
+              "description": "提前推断敌方下一步机动的能力。",
+              "targetValue": 75.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于直接命中率衡量预测及决策时机。",
+              "algorithmNames": ["躲避对抗算法"],
+              "prototypeNames": ["躲避对抗分系统"]
+            },
+            {
+              "id": "3.4.2.3",
+              "name": "策略演化能力",
+              "nameEn": "Strategy Evolution Capability",
+              "description": "根据实时态势进化自身规避策略的能力。",
+              "targetValue": 70.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "比较自动/手动命中率，衡量策略自适应能力。",
+              "algorithmNames": ["躲避对抗算法"],
+              "prototypeNames": ["躲避对抗分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_evasion_eff",
+          "name": "效能指标",
+          "indicators": [
+            {
+              "id": "3.4.3.4",
+              "name": "反制策略执行效能",
+              "nameEn": "Countermeasure Execution Efficiency",
+              "description": "生成并执行规避策略所需的平均时间。",
+              "targetValue": 0.8,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "基于导弹平均飞行时间衡量执行效率。",
+              "algorithmNames": ["躲避对抗算法"],
+              "prototypeNames": ["躲避对抗分系统"]
+            },
+            {
+              "id": "3.4.3.5",
+              "name": "敌方行为预测效能",
+              "nameEn": "Enemy Behaviour Forecasting",
+              "description": "在规避过程中持续预测敌方行为的准确度。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于直接命中率衡量预测准确性。",
+              "algorithmNames": ["躲避对抗算法"],
+              "prototypeNames": ["躲避对抗分系统"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alg_hl",
+      "name": "HL分配算法",
+      "subCategories": [
+        {
+          "id": "alg_hl_perf",
+          "name": "性能指标",
+          "indicators": [
+            {
+              "id": "3.4.1.2",
+              "name": "优先级设定",
+              "nameEn": "Priority Assignment Accuracy",
+              "description": "根据威胁等级正确分配打击顺序的准确性。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于直接命中率衡量优先级设定效果。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.1.5",
+              "name": "资源分配优化精度",
+              "nameEn": "Resource Allocation Accuracy",
+              "description": "在有限弹量下保持最优分配的能力。",
+              "targetValue": 1.5,
+              "higherIsBetter": true,
+              "unit": "",
+              "evaluationRemark": "基于每次命中平均摧毁数衡量资源利用。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.1.7",
+              "name": "多智能体协同决策成功率",
+              "nameEn": "Cooperative Decision Success Rate",
+              "description": "多弹协同时保持一致决策的成功率。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于自动发射命中率衡量协同成功率。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.1.8",
+              "name": "任务分配协调性",
+              "nameEn": "Task Coordination Index",
+              "description": "多目标分配之间的协调程度。",
+              "targetValue": 50.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于自动发射比例衡量协调程度。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_hl_int",
+          "name": "智能指标",
+          "indicators": [
+            {
+              "id": "3.4.2.4",
+              "name": "多目标优化智能",
+              "nameEn": "Multi-objective Optimization",
+              "description": "在多目标环境中智能选择最优攻击策略的能力。",
+              "targetValue": 1.8,
+              "higherIsBetter": true,
+              "unit": "",
+              "evaluationRemark": "基于每次命中平均摧毁数进行评估。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.2.7",
+              "name": "群体协作智能",
+              "nameEn": "Swarm Collaboration Intelligence",
+              "description": "多弹协作时的智能协同水平。",
+              "targetValue": 82.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于自动发射命中率综合评估协作表现。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.2.8",
+              "name": "协同决策学习智能",
+              "nameEn": "Collaborative Learning Intelligence",
+              "description": "在协同过程中通过学习提升决策质量的能力。",
+              "targetValue": 60.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "结合自动发射比例与命中率评估学习能力。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_hl_eff",
+          "name": "效能指标",
+          "indicators": [
+            {
+              "id": "3.4.3.1",
+              "name": "资源使用效能",
+              "nameEn": "Resource Utilisation Efficiency",
+              "description": "单位弹耗带来的平均摧毁数量。",
+              "targetValue": 1.6,
+              "higherIsBetter": true,
+              "unit": "",
+              "evaluationRemark": "基于每次命中平均摧毁数评估资源效率。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.3.2",
+              "name": "任务完成率",
+              "nameEn": "Mission Completion Rate",
+              "description": "执行设定火力任务时的成功率。",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于导弹命中率统计。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.3.6",
+              "name": "多智能体任务完成时间",
+              "nameEn": "Multi-agent Task Time",
+              "description": "多弹协同时完成一次任务所需的平均时间。",
+              "targetValue": 1.2,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "基于自动发射导弹的平均飞行时间评估效率。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
+            },
+            {
+              "id": "3.4.3.7",
+              "name": "协同决策效能",
+              "nameEn": "Collaborative Decision Efficiency",
+              "description": "综合考虑命中率与资源利用的协同效能指标。",
+              "targetValue": 75.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "自动发射命中率与资源利用效率的加权评估。",
+              "algorithmNames": ["HL分配算法"],
+              "prototypeNames": ["HL分配分系统"]
             }
           ]
         }
@@ -702,3 +458,4 @@
     }
   ]
 }
+

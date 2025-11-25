@@ -71,28 +71,12 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 	// 优先从持久化文件加载；如果失败则回退到默认预设
 	if (!LoadPersistent())
 	{
-		// 根据预设选择不同的默认数据（0: 决策，1: 感知）
-		if (PresetIndex == 1)
-		{
-			// 感知：样机更偏向传感与识别链路
-			PrototypeRows = {
-				{ TEXT("近程飞行器样机A"), TEXT("近距目标快速检测与跟踪，低空抗遮挡优化") },
-				{ TEXT("中程飞行器样机B"), TEXT("多目标并发识别与跟踪，抗干扰融合") },
-				{ TEXT("远程飞行器样机C"), TEXT("远距离热源探测与红外伪装识别") },
-				{ TEXT("干扰对抗分系统"), TEXT("电磁压制场景下的抗干扰与频谱管理分系统") }
-			};
-		}
-		else
-		{
-			// 决策：样机更偏向任务执行与协同能力
-			PrototypeRows = {
-				{ TEXT("作战样机Alpha"), TEXT("编队协同与任务分配，航迹重规划") },
-				{ TEXT("作战样机Bravo"), TEXT("对抗策略学习与资源分配优化") },
-				{ TEXT("作战样机Charlie"), TEXT("多智能体协同决策与冲突消解") },
-				{ TEXT("干扰对抗分系统"), TEXT("电磁压制场景下的抗干扰与频谱管理分系统") },
-				{ TEXT("躲避对抗分系统"), TEXT("抗拦截机动和避障控制分系统") }
-			};
-		}
+		PrototypeRows = {
+			{ TEXT("干扰对抗分系统"), TEXT("电磁压制场景下的抗干扰与频谱管理分系统") },
+			{ TEXT("轨迹规划分系统"), TEXT("复杂空域航迹优化与实时调整分系统") },
+			{ TEXT("躲避对抗分系统"), TEXT("抗拦截机动、威胁规避与追踪干扰分系统") },
+			{ TEXT("HL分配分系统"), TEXT("多弹协同火力分配与优先级管理分系统") }
+		};
 
 		SelectedRows.Init(false, PrototypeRows.Num());
 	}
@@ -199,8 +183,8 @@ TSharedRef<SWidget> SScenarioPrototypeTable::BuildRows()
 void SScenarioPrototypeTable::SavePersistent() const
 {
 	const FString FileName = (PresetIndex == 1)
-		? TEXT("ScenarioPrototypes_Perception.json")
-		: TEXT("ScenarioPrototypes_Decision.json");
+		? TEXT("ScenarioPrototypes_v2_Perception.json")
+		: TEXT("ScenarioPrototypes_v2_Decision.json");
 
 	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
 	IFileManager::Get().MakeDirectory(*Dir, true);
@@ -234,8 +218,8 @@ void SScenarioPrototypeTable::SavePersistent() const
 bool SScenarioPrototypeTable::LoadPersistent()
 {
 	const FString FileName = (PresetIndex == 1)
-		? TEXT("ScenarioPrototypes_Perception.json")
-		: TEXT("ScenarioPrototypes_Decision.json");
+		? TEXT("ScenarioPrototypes_v2_Perception.json")
+		: TEXT("ScenarioPrototypes_v2_Decision.json");
 
 	const FString Dir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Config"));
 	const FString FullPath = FPaths::Combine(Dir, FileName);

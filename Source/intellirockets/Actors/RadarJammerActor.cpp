@@ -107,7 +107,16 @@ void ARadarJammerActor::SetJammerRadius(float InRadius)
 	JammerRadius = BaseRadius;
 	VisualizedRadius = JammerRadius;
 	TargetVisualRadius = JammerRadius;
+	LastGeneratedRadius = 0.f; // 强制重新生成网格
 	UpdateVisualization();
+	
+	// 如果已经开始，立即更新可视化，确保半径变化可见
+	if (HasActorBegunPlay())
+	{
+		// 强制重新生成网格，确保半径变化立即生效
+		GenerateSphereMesh(VisualizedRadius);
+		LastGeneratedRadius = VisualizedRadius;
+	}
 }
 
 bool ARadarJammerActor::IsPointInJammerRange(const FVector& Point) const

@@ -40,6 +40,142 @@
 #include "CollisionQueryParams.h"
 #include "Engine/Engine.h"
 
+namespace
+{
+	struct FEnvironmentEffect
+	{
+		// 干扰对抗算法
+		float DetectionMarginScale = 1.f;
+		float RecoveryDelayScale = 1.f;
+		float ResponseRateScale = 1.f;
+		float SuppressionRateScale = 1.f;
+		float RadiusReductionScale = 1.f;
+		float CoverageRateScale = 1.f;
+		float DurationScale = 1.f;
+		
+		// HL分配算法
+		float PriorityAssignmentScale = 1.f; // 优先级设定
+		float ResourceAllocationScale = 1.f; // 资源分配优化精度
+		float CooperativeDecisionScale = 1.f; // 多智能体协同决策成功率
+		float TaskCoordinationScale = 1.f; // 任务分配协调性
+		float MultiObjectiveScale = 1.f; // 多目标优化智能
+		float SwarmCollaborationScale = 1.f; // 群体协作智能
+		float CollaborativeLearningScale = 1.f; // 协同决策学习智能
+		float ResourceUtilizationScale = 1.f; // 资源使用效能
+		float MissionCompletionScale = 1.f; // 任务完成率
+		float MultiAgentTimeScale = 1.f; // 多智能体任务完成时间（越小越好，所以用倒数）
+		float CollaborativeEfficiencyScale = 1.f; // 协同决策效能
+	};
+
+	FEnvironmentEffect CombineEffect(const FEnvironmentEffect& A, const FEnvironmentEffect& B)
+	{
+		FEnvironmentEffect Out;
+		// 干扰对抗算法
+		Out.DetectionMarginScale = A.DetectionMarginScale * B.DetectionMarginScale;
+		Out.RecoveryDelayScale = A.RecoveryDelayScale * B.RecoveryDelayScale;
+		Out.ResponseRateScale = A.ResponseRateScale * B.ResponseRateScale;
+		Out.SuppressionRateScale = A.SuppressionRateScale * B.SuppressionRateScale;
+		Out.RadiusReductionScale = A.RadiusReductionScale * B.RadiusReductionScale;
+		Out.CoverageRateScale = A.CoverageRateScale * B.CoverageRateScale;
+		Out.DurationScale = A.DurationScale * B.DurationScale;
+		// HL分配算法
+		Out.PriorityAssignmentScale = A.PriorityAssignmentScale * B.PriorityAssignmentScale;
+		Out.ResourceAllocationScale = A.ResourceAllocationScale * B.ResourceAllocationScale;
+		Out.CooperativeDecisionScale = A.CooperativeDecisionScale * B.CooperativeDecisionScale;
+		Out.TaskCoordinationScale = A.TaskCoordinationScale * B.TaskCoordinationScale;
+		Out.MultiObjectiveScale = A.MultiObjectiveScale * B.MultiObjectiveScale;
+		Out.SwarmCollaborationScale = A.SwarmCollaborationScale * B.SwarmCollaborationScale;
+		Out.CollaborativeLearningScale = A.CollaborativeLearningScale * B.CollaborativeLearningScale;
+		Out.ResourceUtilizationScale = A.ResourceUtilizationScale * B.ResourceUtilizationScale;
+		Out.MissionCompletionScale = A.MissionCompletionScale * B.MissionCompletionScale;
+		Out.MultiAgentTimeScale = A.MultiAgentTimeScale * B.MultiAgentTimeScale;
+		Out.CollaborativeEfficiencyScale = A.CollaborativeEfficiencyScale * B.CollaborativeEfficiencyScale;
+		return Out;
+	}
+
+	FEnvironmentEffect BuildEnvironmentEffect(const FScenarioTestConfig& Config)
+	{
+		// 干扰对抗算法环境因子（7个）
+		// HL分配算法环境因子（11个）
+		const FEnvironmentEffect WeatherEffects[] =
+		{
+			{}, // 晴天：所有因子为1.0
+			// 海杂波：干扰对抗(7) + HL分配(11)
+			{ 0.90f, 1.10f, 0.95f, 0.93f, 0.97f, 0.94f, 1.05f, 0.92f, 0.94f, 0.91f, 0.93f, 0.93f, 0.92f, 0.91f, 0.94f, 0.92f, 1.08f, 0.93f },
+			// 气动热效应：干扰对抗(7) + HL分配(11)
+			{ 0.92f, 1.05f, 0.96f, 0.95f, 0.95f, 0.95f, 1.02f, 0.94f, 0.96f, 0.93f, 0.95f, 0.95f, 0.94f, 0.93f, 0.96f, 0.94f, 1.05f, 0.95f },
+			// 雾天：干扰对抗(7) + HL分配(11)
+			{ 0.80f, 1.30f, 0.85f, 0.88f, 0.90f, 0.90f, 1.20f, 0.85f, 0.88f, 0.82f, 0.86f, 0.87f, 0.85f, 0.83f, 0.88f, 0.85f, 1.25f, 0.86f }
+		};
+
+		const FEnvironmentEffect TimeEffects[] =
+		{
+			{}, // 白天：所有因子为1.0
+			// 夜晚：干扰对抗(7) + HL分配(11)
+			{ 0.93f, 1.07f, 0.92f, 0.94f, 0.97f, 0.95f, 1.05f, 0.95f, 0.97f, 0.94f, 0.96f, 0.96f, 0.95f, 0.94f, 0.97f, 0.95f, 1.08f, 0.96f }
+		};
+
+		const FEnvironmentEffect MapEffects[] =
+		{
+			// 沙漠：干扰对抗(7) + HL分配(11) - 沙漠环境对HL分配影响较小，但热源干扰会影响协同
+			{ 0.92f, 0.95f, 0.97f, 0.95f, 0.96f, 0.96f, 0.95f, 0.96f, 0.98f, 0.95f, 0.97f, 0.97f, 0.96f, 0.95f, 0.98f, 0.96f, 0.94f, 0.97f },
+			// 森林：干扰对抗(7) + HL分配(11) - 森林遮挡会影响协同决策
+			{ 0.85f, 1.15f, 0.90f, 0.92f, 0.94f, 0.90f, 1.10f, 0.88f, 0.90f, 0.85f, 0.87f, 0.88f, 0.86f, 0.84f, 0.90f, 0.87f, 1.12f, 0.88f },
+			// 雪地：干扰对抗(7) + HL分配(11) - 雪地反射会影响协同
+			{ 0.88f, 1.10f, 0.93f, 0.93f, 0.95f, 0.92f, 1.05f, 0.91f, 0.93f, 0.89f, 0.91f, 0.92f, 0.90f, 0.88f, 0.93f, 0.91f, 1.08f, 0.92f },
+			{}  // 海边：所有因子为1.0
+		};
+
+		FEnvironmentEffect Effect;
+
+		const int32 WeatherIndex = FMath::Clamp(Config.WeatherIndex, 0, UE_ARRAY_COUNT(WeatherEffects) - 1);
+		Effect = CombineEffect(Effect, WeatherEffects[WeatherIndex]);
+
+		const int32 TimeIndex = FMath::Clamp(Config.TimeIndex, 0, UE_ARRAY_COUNT(TimeEffects) - 1);
+		Effect = CombineEffect(Effect, TimeEffects[TimeIndex]);
+
+		const int32 MapIndex = FMath::Clamp(Config.MapIndex, 0, UE_ARRAY_COUNT(MapEffects) - 1);
+		Effect = CombineEffect(Effect, MapEffects[MapIndex]);
+
+		return Effect;
+	}
+
+	void ApplyEnvironmentEffectToSummary(const FEnvironmentEffect& Effect, FMissileTestSummary& Summary)
+	{
+		// 干扰对抗算法指标
+		Summary.CountermeasureAverageDetectionMarginPercent = FMath::Clamp(
+			Summary.CountermeasureAverageDetectionMarginPercent * Effect.DetectionMarginScale, 0.f, 120.f);
+
+		Summary.CountermeasureAverageActivationDelay = FMath::Max(
+			0.f, Summary.CountermeasureAverageActivationDelay * Effect.RecoveryDelayScale);
+
+		Summary.CountermeasureOnTimeRate = FMath::Clamp(
+			Summary.CountermeasureOnTimeRate * Effect.ResponseRateScale, 0.f, 100.f);
+
+		Summary.CountermeasureSuppressionSuccessRate = FMath::Clamp(
+			Summary.CountermeasureSuppressionSuccessRate * Effect.SuppressionRateScale, 0.f, 100.f);
+
+		Summary.CountermeasureAverageRadiusReductionRate = FMath::Clamp(
+			Summary.CountermeasureAverageRadiusReductionRate * Effect.RadiusReductionScale, 0.f, 100.f);
+
+		Summary.CountermeasureCoverageSuccessRate = FMath::Clamp(
+			Summary.CountermeasureCoverageSuccessRate * Effect.CoverageRateScale, 0.f, 100.f);
+
+		Summary.CountermeasureAverageDuration = FMath::Max(
+			0.f, Summary.CountermeasureAverageDuration * Effect.DurationScale);
+		
+		// HL分配算法指标的环境因子会在BuildIndicatorEvaluations中应用
+	}
+
+	void ComputeResourceCostScore(FMissileTestSummary& Summary)
+	{
+		const float NormDuration = FMath::Clamp(Summary.CountermeasureAverageDuration / 3.0f, 0.f, 2.f);
+		const float NormDelay = FMath::Clamp(Summary.CountermeasureAverageActivationDelay / 1.0f, 0.f, 2.f);
+		const float CombinedPenalty = FMath::Clamp((NormDuration * 0.7f) + (NormDelay * 0.3f), 0.f, 2.f);
+		Summary.CountermeasureResourceCostScore = FMath::Clamp(100.f - CombinedPenalty * 50.f, 0.f, 100.f);
+	}
+}
+
 void UScenarioMenuSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -390,10 +526,11 @@ void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluati
 			Result.RemarkText = Remark;
 		};
 
+		const FPerceptionRuntimeStats& P = PerceptionStats;
+
 		// 9.1.1 感知算法性能指标
 		if (IndicatorId.StartsWith(TEXT("9.1.1")))
 		{
-			const FPerceptionRuntimeStats& P = PerceptionStats;
 			if (IndicatorId == TEXT("9.1.1.1"))
 			{
 				const int32 Den = P.NumDetectionsCorrect + P.NumFalsePositives;
@@ -538,8 +675,9 @@ void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluati
 		}
 		else if (IndicatorId == TEXT("3.4.2.5"))
 		{
-			// 未来可扩展性-对抗学习智能：基于整体命中率，反映通过学习提升反制策略的智能水平
-			EvaluateThreshold(Summary.HitRate, 85.f, true, TEXT("%"), TEXT("基于整体命中率，反映通过学习提升反制策略的智能水平。"));
+			const int32 ThreatSamples = P.NumDetectionsCorrect + P.NumFalsePositives + P.NumFalseNegatives;
+			const float ThreatEvalScore = ThreatSamples > 0 ? (static_cast<float>(P.NumDetectionsCorrect) * 100.f / ThreatSamples) : 0.f;
+			EvaluateThreshold(ThreatEvalScore, 85.f, true, TEXT("%"), TEXT("威胁等级评估准确率≥85%。"));
 		}
 		else if (IndicatorId == TEXT("3.4.2.6"))
 		{
@@ -762,8 +900,7 @@ void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluati
 		}
 		else if (IndicatorId == TEXT("3.5.3.4"))
 		{
-			// 效能性-决策一致性：基于自动发射命中率，反映在多智能体决策中的一致性表现，避免冲突决策
-			EvaluateThreshold(AutoHitRate, 77.f, true, TEXT("%"), TEXT("基于自动发射命中率，反映在多智能体决策中的一致性表现，避免冲突决策。"));
+			EvaluateThreshold(Summary.CountermeasureResourceCostScore, 77.f, true, TEXT("%"), TEXT("系统资源消耗控制水平≥77%。"));
 		}
 		else if (IndicatorId == TEXT("3.5.3.5"))
 		{
@@ -1129,7 +1266,7 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 		break;
 	}
 
-	// Collect spawn markers: prefer tags, fallback to name pattern
+	// Collect spawn markers: 只查找 BP_BluePotentialDeployLocation
 	TArray<AActor*> SpawnMarkers;
 	const FName PrimaryTag = FName(TEXT("BluePotentialDeployLocation"));
 	const FName LegacyTag = FName(TEXT("PotentialBlueDeployLocation"));
@@ -1152,8 +1289,10 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 
 	if (SpawnMarkers.Num() == 0)
 	{
+		// 严格匹配：只查找名称完全为 BP_BluePotentialDeployLocation 的 Actor
 		TArray<AActor*> AllActors;
 		UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+		const FString TargetName = TEXT("BP_BluePotentialDeployLocation");
 		for (AActor* Actor : AllActors)
 		{
 			if (!Actor)
@@ -1162,19 +1301,20 @@ void UScenarioMenuSubsystem::DeployBlueForScenario(UWorld* World, const FScenari
 			}
 
 			const FString ActorName = Actor->GetName();
-			if (ActorName.Contains(TEXT("BluePotentialDeployLocation")))
+			// 严格匹配：名称完全等于 BP_BluePotentialDeployLocation，或者包含但以 BP_ 开头
+			if (ActorName == TargetName || (ActorName.StartsWith(TEXT("BP_")) && ActorName.Contains(TEXT("BluePotentialDeployLocation"))))
 			{
 				SpawnMarkers.Add(Actor);
-				UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: fallback picked actor %s (Class=%s)"), *ActorName, *Actor->GetClass()->GetName());
+				UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: found deploy location actor %s (Class=%s)"), *ActorName, *Actor->GetClass()->GetName());
 			}
 		}
 
-		UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: fallback name search matched %d actors"), SpawnMarkers.Num());
+		UE_LOG(LogTemp, Log, TEXT("DeployBlueForScenario: name search matched %d actors"), SpawnMarkers.Num());
 
 		if (SpawnMarkers.Num() == 0)
 		{
 			const int32 SampleCount = FMath::Min(20, AllActors.Num());
-			UE_LOG(LogTemp, Warning, TEXT("DeployBlueForScenario: fallback failed. Sample of world actors:"));
+			UE_LOG(LogTemp, Warning, TEXT("DeployBlueForScenario: 未找到 BP_BluePotentialDeployLocation. Sample of world actors:"));
 			for (int32 Index = 0; Index < SampleCount; ++Index)
 			{
 				AActor* Sample = AllActors[Index];
@@ -2219,10 +2359,17 @@ void UScenarioMenuSubsystem::SpawnRadarJammers(UWorld* World)
 		if (Jammer)
 		{
 			float JammerRadius = FMath::RandRange(5000.f, 8000.f);
+			// 沙漠地图半径变为2.5倍
+			const FString CurrentMapName = World->GetMapName();
+			const bool bIsDesertMap = CurrentMapName.Contains(TEXT("Desert")) || CurrentMapName.Contains(TEXT("沙漠"));
+			if (bIsDesertMap)
+			{
+				JammerRadius *= 2.5f;
+			}
 			Jammer->SetJammerRadius(JammerRadius);
 			ActiveRadarJammers.Add(Jammer);
-			UE_LOG(LogTemp, Log, TEXT("SpawnRadarJammers: Spawned jammer at defend zone anchor %s (radius %.1f)"),
-				*DefendZoneAnchor->GetName(), JammerRadius);
+			UE_LOG(LogTemp, Log, TEXT("SpawnRadarJammers: Spawned jammer at defend zone anchor %s (radius %.1f, desert=%s)"),
+				*DefendZoneAnchor->GetName(), JammerRadius, bIsDesertMap ? TEXT("yes") : TEXT("no"));
 		}
 		else
 		{
@@ -2249,11 +2396,11 @@ void UScenarioMenuSubsystem::SpawnRadarJammers(UWorld* World)
 		AActor* TargetUnit = ValidBlueUnits[RandomIndex];
 		FVector UnitLocation = TargetUnit->GetActorLocation();
 
-		// 设置干扰半径（5000-8000厘米），沙漠地图增大10倍
+		// 设置干扰半径（5000-8000厘米），沙漠地图变为2.5倍
 		float JammerRadius = FMath::RandRange(5000.f, 8000.f);
 		if (bIsDesertMap)
 		{
-			JammerRadius = JammerRadius * 10.f * 0.25f;
+			JammerRadius *= 2.5f;
 		}
 		
 		// 让蓝方目标处于球体区域靠边缘的位置
@@ -3581,6 +3728,14 @@ void UScenarioMenuSubsystem::CompleteMissileTest()
 	LastMissileSummary.CountermeasureAverageRadiusReductionRate = CountermeasureRadiusReductionSamples > 0 ? (CountermeasureRadiusReductionAccumulator / CountermeasureRadiusReductionSamples) : 0.f;
 	LastMissileSummary.CountermeasureCoverageSuccessRate = CountermeasureEnteredJammerRangeCount > 0 ? (static_cast<float>(CountermeasureCoverageSuccessCount) * 100.f / CountermeasureEnteredJammerRangeCount) : 0.f;
 	LastMissileSummary.CountermeasureAverageDuration = CountermeasureDurationSamples > 0 ? (CountermeasureDurationAccumulator / CountermeasureDurationSamples) : 0.f;
+
+	if (bHasActiveScenarioConfig)
+	{
+		const FEnvironmentEffect EnvEffect = BuildEnvironmentEffect(ActiveScenarioConfig);
+		ApplyEnvironmentEffectToSummary(EnvEffect, LastMissileSummary);
+	}
+
+	ComputeResourceCostScore(LastMissileSummary);
 
 	UE_LOG(LogTemp, Log, TEXT("Missile test completed: Shots=%d Hits=%d HitRate=%.1f%%"),
 		LastMissileSummary.TotalShots, LastMissileSummary.Hits, LastMissileSummary.HitRate);

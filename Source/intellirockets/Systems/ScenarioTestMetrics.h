@@ -86,6 +86,7 @@ struct FMissileTestSummary
 	float CountermeasureAverageRadiusReductionRate = 0.f; // 平均反制半径缩减率
 	float CountermeasureCoverageSuccessRate = 0.f; // 干扰覆盖成功率
 	float CountermeasureAverageDuration = 0.f; // 平均干扰持续时间
+	float CountermeasureResourceCostScore = 0.f; // 资源消耗控制得分（0-100）
 };
 
 struct FIndicatorEvaluationResult

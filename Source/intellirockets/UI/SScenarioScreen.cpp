@@ -503,7 +503,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep2()
 						if (bPerception)
 						{
 							SAssignNew(IndicatorSelector, SIndicatorSelector)
-								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/PerceptionIndicators.json"));
+								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json"));
 						}
 						else
 						{
