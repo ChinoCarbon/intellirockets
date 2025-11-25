@@ -84,7 +84,8 @@ void SScenarioMainTable::Construct(const FArguments& InArgs)
 			AlgorithmRows = {
 				{ TEXT("目标检测"), TEXT("复杂地面环境下的目标检测与识别"), TEXT("多模态检测融合"), TEXT("森林-薄雾"), TEXT("红外+可见光融合"), TEXT("/Configs/Perception/ObjectDetect.json") },
 				{ TEXT("多目标跟踪"), TEXT("中距离多目标持续跟踪与遮挡判别"), TEXT("多目标数据关联"), TEXT("城郊-弱光"), TEXT("雷达+光电联合"), TEXT("/Configs/Perception/MOT.json") },
-				{ TEXT("抗干扰识别"), TEXT("电磁干扰下的稳定识别与恢复"), TEXT("频谱分析与自适应选择"), TEXT("沿海-电磁复杂"), TEXT("频谱+雷达"), TEXT("/Configs/Perception/JammingResist.json") }
+				{ TEXT("抗干扰识别"), TEXT("电磁干扰下的稳定识别与恢复"), TEXT("频谱分析与自适应选择"), TEXT("沿海-电磁复杂"), TEXT("频谱+雷达"), TEXT("/Configs/Perception/JammingResist.json") },
+				{ TEXT("电磁干扰抑制"), TEXT("强干扰环境保持感知稳定"), TEXT("干扰对抗算法"), TEXT("沿海-强干扰"), TEXT("多谱融合数据"), TEXT("/Configs/Perception/EWCounter.json") }
 			};
 		}
 		else
@@ -93,7 +94,9 @@ void SScenarioMainTable::Construct(const FArguments& InArgs)
 			AlgorithmRows = {
 				{ TEXT("空地联合打击"), TEXT("压制敌方防空节点，确保突击通道"), TEXT("自适应航迹规划"), TEXT("高原沙漠"), TEXT("卫星+雷达复合侦察"), TEXT("/Configs/Strike/AdaptiveRoute.json") },
 				{ TEXT("防空拦截"), TEXT("中远程导弹拦截入侵目标"), TEXT("多传感器融合决策"), TEXT("沿海城市"), TEXT("雷达+光电联合数据"), TEXT("/Configs/AirDefense/FusionDecision.json") },
-				{ TEXT("海上巡航"), TEXT("护航编队并侦察异常信号"), TEXT("航迹重规划"), TEXT("近海气象多变"), TEXT("声呐+北斗定位"), TEXT("/Configs/Naval/PatrolPlanner.json") }
+				{ TEXT("海上巡航"), TEXT("护航编队并侦察异常信号"), TEXT("航迹重规划"), TEXT("近海气象多变"), TEXT("声呐+北斗定位"), TEXT("/Configs/Naval/PatrolPlanner.json") },
+				{ TEXT("弹道再规划"), TEXT("高威胁环境下绕飞干扰区域并保持命中"), TEXT("轨迹优化算法"), TEXT("山地-复杂电磁"), TEXT("卫星+红外复合"), TEXT("/Configs/Strike/TrajectoryOpt.json") },
+				{ TEXT("火力分配"), TEXT("多目标协同分配与弹目匹配"), TEXT("HL分配算法"), TEXT("沿海集团军"), TEXT("多源威胁库"), TEXT("/Configs/Strike/HLAllocator.json") }
 			};
 		}
 

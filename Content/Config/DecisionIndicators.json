@@ -27,7 +27,7 @@
               "higherIsBetter": true,
               "unit": "%",
               "evaluationRemark": "基于导弹命中率，反映路径规划的准确性和可执行性。",
-              "algorithmNames": ["自适应航迹规划", "航迹重规划"],
+              "algorithmNames": ["自适应航迹规划", "航迹重规划", "轨迹优化算法"],
               "level": "algorithm"
             },
             {
@@ -38,7 +38,9 @@
               "targetValue": 75.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映全局最优路径规划的准确性。"
+              "evaluationRemark": "基于直接命中率，反映全局最优路径规划的准确性。",
+              "algorithmNames": ["轨迹优化算法"],
+              "level": "algorithm"
             },
             {
               "id": "3.4.1.5",
@@ -48,7 +50,9 @@
               "targetValue": 1.5,
               "higherIsBetter": true,
               "unit": "",
-              "evaluationRemark": "基于每次命中平均摧毁数，反映资源分配的优化精度。"
+              "evaluationRemark": "基于每次命中平均摧毁数，反映资源分配的优化精度。",
+              "algorithmNames": ["HL分配算法"],
+              "level": "algorithm"
             }
           ]
         },
@@ -238,7 +242,9 @@
               "targetValue": 1.6,
               "higherIsBetter": true,
               "unit": "",
-              "evaluationRemark": "基于每次命中平均摧毁数，反映资源使用的最大化效率。"
+              "evaluationRemark": "基于每次命中平均摧毁数，反映资源使用的最大化效率。",
+              "algorithmNames": ["HL分配算法"],
+              "level": "algorithm"
             },
             {
               "id": "3.4.3.2",
@@ -248,7 +254,81 @@
               "targetValue": 95.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "基于导弹命中率。"
+              "evaluationRemark": "基于导弹命中率。",
+              "algorithmNames": ["HL分配算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "3.4.3.8",
+              "name": "效能性-分裂触发成功率",
+              "nameEn": "Split Trigger Success Rate",
+              "description": "满足条件时导弹成功触发分裂的比例，反映 HL 分配算法的触发效果。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "分裂成功次数 / 分裂尝试次数。",
+              "algorithmNames": ["HL分配算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "3.4.3.9",
+              "name": "效能性-分裂子弹命中率",
+              "nameEn": "Split Child Hit Rate",
+              "description": "由分裂产生的导弹命中目标的占比。",
+              "targetValue": 60.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "分裂子弹命中数 / 分裂子弹总数。",
+              "algorithmNames": ["HL分配算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "3.4.3.10",
+              "name": "效能性-分裂协同命中数",
+              "nameEn": "Split Coordination Hits",
+              "description": "一次分裂覆盖到的不同目标数量，衡量协同行动效果。",
+              "targetValue": 2.0,
+              "higherIsBetter": true,
+              "unit": "",
+              "evaluationRemark": "平均每次分裂命中目标数。",
+              "algorithmNames": ["HL分配算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "3.4.3.11",
+              "name": "效能性-干扰触发距离裕度",
+              "nameEn": "Interference Trigger Margin",
+              "description": "干扰对抗算法在导弹进入干扰区域前触发反制的距离裕度，占基础半径的比例。",
+              "targetValue": 20.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "平均触发距离相对于基础半径的超前比例，≥20% 说明在区域外即可明显缩小干扰球。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "3.4.3.12",
+              "name": "效能性-干扰抑制成功率",
+              "nameEn": "Interference Suppression Success Rate",
+              "description": "干扰对抗算法成功抑制导弹命中目标的比例。",
+              "targetValue": 70.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "启用干扰对抗算法后，导弹在干扰区域内失去目标或未命中的比例。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "3.4.3.13",
+              "name": "效能性-反制半径缩减率",
+              "nameEn": "Countermeasure Radius Reduction Rate",
+              "description": "反制激活后干扰区域半径的平均缩减比例。",
+              "targetValue": 60.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "反制激活时干扰区域半径相对于基础半径的平均缩减百分比，反映反制强度。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
             },
             {
               "id": "3.4.3.3",
@@ -258,7 +338,9 @@
               "targetValue": 1.0,
               "higherIsBetter": false,
               "unit": " s",
-              "evaluationRemark": "以导弹平均飞行时间近似路径执行时长。"
+              "evaluationRemark": "以导弹平均飞行时间近似路径执行时长。",
+              "algorithmNames": ["轨迹优化算法"],
+              "level": "algorithm"
             },
             {
               "id": "3.4.3.4",
@@ -268,17 +350,9 @@
               "targetValue": 0.8,
               "higherIsBetter": false,
               "unit": " s",
-              "evaluationRemark": "基于导弹平均飞行时间，反映反制策略生成和执行的效率。"
-            },
-            {
-              "id": "3.4.3.7",
-              "name": "效能性-协同决策效能",
-              "nameEn": "Collaborative Decision Efficiency",
-              "description": "在协作过程中，决策算法的执行效率和资源使用效能。",
-              "targetValue": 75.0,
-              "higherIsBetter": true,
-              "unit": "%",
-              "evaluationRemark": "基于自动发射命中率与资源利用效率的综合评估，反映协同决策的效能。"
+              "evaluationRemark": "基于导弹平均飞行时间，反映反制策略生成和执行的效率。",
+              "algorithmNames": ["轨迹优化算法"],
+              "level": "algorithm"
             }
           ]
         }
@@ -413,7 +487,9 @@
               "targetValue": 79.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "基于直接命中率，反映在对抗环境中根据实时战场态势智能调整反制策略的能力。"
+              "evaluationRemark": "基于直接命中率，反映在对抗环境中根据实时战场态势智能调整反制策略的能力。",
+              "prototypeNames": ["躲避对抗分系统"],
+              "level": "system"
             },
             {
               "id": "3.5.2.6",
@@ -423,7 +499,9 @@
               "targetValue": 81.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "基于自动发射命中率与任务完成率的综合评估，反映智能协调多个智能体协同完成任务的能力。"
+              "evaluationRemark": "基于自动发射命中率与任务完成率的综合评估，反映智能协调多个智能体协同完成任务的能力。",
+              "prototypeNames": ["躲避对抗分系统"],
+              "level": "system"
             }
           ]
         },
@@ -438,7 +516,9 @@
               "targetValue": 85.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "基于整体命中率，反映对全局态势的理解和智能决策支持。"
+              "evaluationRemark": "基于整体命中率，反映对全局态势的理解和智能决策支持。",
+              "prototypeNames": ["躲避对抗分系统"],
+              "level": "system"
             },
             {
               "id": "3.5.2.4",
@@ -448,7 +528,9 @@
               "targetValue": 72.0,
               "higherIsBetter": true,
               "unit": "%",
-              "evaluationRemark": "基于自动发射比例，反映智能分解全局复杂任务为多个可执行子任务并协调智能体执行的能力。"
+              "evaluationRemark": "基于自动发射比例，反映智能分解全局复杂任务为多个可执行子任务并协调智能体执行的能力。",
+              "prototypeNames": ["躲避对抗分系统"],
+              "level": "system"
             }
           ]
         },
@@ -504,6 +586,100 @@
               "higherIsBetter": true,
               "unit": "%",
               "evaluationRemark": "基于自动发射命中率与资源利用效率的综合评估，反映通过群体算法高效完成任务的能力。"
+            }
+          ]
+        },
+        {
+          "name": "HL分配协同效能",
+          "indicators": [
+            {
+              "id": "3.5.3.7",
+              "name": "系统级-多弹协同成功率",
+              "nameEn": "System Split Success Rate",
+              "description": "HL 分配分系统触发协同后实际成功生成子弹并命中的占比。",
+              "targetValue": 75.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "分裂成功次数 / 分裂尝试次数。",
+              "prototypeNames": ["躲避对抗分系统"],
+              "level": "system"
+            },
+            {
+              "id": "3.5.3.8",
+              "name": "系统级-多目标覆盖能力",
+              "nameEn": "System Split Coverage",
+              "description": "一次协同任务中由分裂导弹命中的不同目标数量。",
+              "targetValue": 2.0,
+              "higherIsBetter": true,
+              "unit": "",
+              "evaluationRemark": "平均每次分裂命中目标数。",
+              "prototypeNames": ["躲避对抗分系统"],
+              "level": "system"
+            },
+            {
+              "id": "3.5.3.9",
+              "name": "系统级-子弹贡献率",
+              "nameEn": "System Split Contribution Rate",
+              "description": "由分裂子弹带来的命中占比，衡量协同分系统的整体效益。",
+              "targetValue": 60.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "分裂子弹命中数 / 分裂子弹总数。",
+              "prototypeNames": ["躲避对抗分系统"],
+              "level": "system"
+            }
+          ]
+        },
+        {
+          "name": "干扰对抗表现",
+          "indicators": [
+            {
+              "id": "3.5.4.1",
+              "name": "系统级-干扰响应及时率",
+              "nameEn": "Interference Response Timeliness",
+              "description": "检测到导弹后在0.5秒内、并保持高度/距离条件下启动干扰的比例。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "导弹进入检测半径后0.5秒内、且高度差≤1.5km时即开始干扰的比例。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
+            },
+            {
+              "id": "3.5.4.2",
+              "name": "系统级-干扰响应延迟",
+              "nameEn": "Interference Response Delay",
+              "description": "从首次看到目标到干扰真正生效的平均延迟，考虑高度与距离。",
+              "targetValue": 0.5,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均检测到导弹到干扰启动的时间差，应≤0.5秒，同时保证高度/距离条件满足。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
+            },
+            {
+              "id": "3.5.4.3",
+              "name": "系统级-干扰覆盖成功率",
+              "nameEn": "Interference Coverage Success Rate",
+              "description": "干扰对抗分系统成功覆盖并影响导弹的比例。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "进入干扰区域的导弹中，成功被干扰（失去目标或未命中）的比例。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
+            },
+            {
+              "id": "3.5.4.4",
+              "name": "系统级-干扰持续时间",
+              "nameEn": "Interference Duration",
+              "description": "干扰对抗分系统对单个目标实施干扰的平均持续时间。",
+              "targetValue": 2.0,
+              "higherIsBetter": true,
+              "unit": " s",
+              "evaluationRemark": "从干扰启动到导弹离开干扰区域或命中的平均时间，反映干扰持续性。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
             }
           ]
         },

@@ -11,7 +11,16 @@
             { "id": "9.1.1.2",  "name": "性能性-目标识别速度（Target Recognition Speed）",          "unit": "s",   "targetValue": 0.2, "higherIsBetter": false, "description": "识别目标所需的时间，衡量实时性。", "algorithmNames": ["多模态检测融合", "多目标数据关联"], "level": "algorithm" },
             { "id": "9.1.1.4a", "name": "性能性-多目标跟踪精度（Multi-target Tracking Accuracy）-同时跟踪数量", "unit": "count", "targetValue": 5.0, "higherIsBetter": true,  "description": "同时跟踪多个移动目标的准确性。", "algorithmNames": ["多目标数据关联"], "level": "algorithm" },
             { "id": "9.1.1.4b", "name": "性能性-多目标跟踪精度（Multi-target Tracking Accuracy）-跟踪误差",     "unit": "m",   "targetValue": 1.0, "higherIsBetter": false, "description": "同时跟踪多个移动目标的准确性。", "algorithmNames": ["多目标数据关联"], "level": "algorithm" },
-            { "id": "9.1.1.7",  "name": "性能性-信号恢复速度（Signal Recovery Speed）",                 "unit": "s",   "targetValue": 1.0, "higherIsBetter": false, "description": "系统从干扰状态恢复正常工作所需的时间。" },
+            {
+              "id": "9.1.1.7",
+              "name": "性能性-信号恢复速度（Signal Recovery Speed）",
+              "unit": "s",
+              "targetValue": 1.0,
+              "higherIsBetter": false,
+              "description": "系统从干扰状态恢复正常工作所需的时间。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
             { "id": "9.1.1.9",  "name": "性能性-热源跟踪精度（Heat Source Tracking Accuracy）",          "unit": "m",   "targetValue": 0.5, "higherIsBetter": false, "description": "对目标热源进行实时跟踪的精度。" },
             { "id": "9.1.3.2a", "name": "效能性-系统资源消耗-计算资源占用（Resource Consumption - Compute）", "unit": "%",   "targetValue": 30.0, "higherIsBetter": false, "description": "算法在执行过程中消耗的计算资源。" },
             { "id": "9.1.3.2b", "name": "效能性-系统资源消耗-能量消耗（Resource Consumption - Power）",       "unit": "W",   "targetValue": 1.0,  "higherIsBetter": false, "description": "算法在执行过程中消耗的能量等。" },
@@ -25,19 +34,82 @@
           "indicators": [
             { "id": "9.1.1.3a", "name": "鲁棒性-环境适应性（Environmental Adaptability）-不同光照下识别率",  "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "算法在不同环境条件（如光照、天气等）下的表现稳定性。" },
             { "id": "9.1.1.3b", "name": "鲁棒性-环境适应性（Environmental Adaptability）-不同天气下识别率",  "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "算法在不同环境条件（如光照、天气等）下的表现稳定性。" },
-            { "id": "9.1.1.5a", "name": "鲁棒性-抗干扰精度（Jamming Resistance Accuracy）-轻度干扰识别率",   "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "算法应对敌方电磁干扰的准确性，确保感知数据不受干扰影响。" },
-            { "id": "9.1.1.5b", "name": "鲁棒性-抗干扰精度（Jamming Resistance Accuracy）-中度干扰识别率",   "unit": "%", "targetValue": 80.0, "higherIsBetter": true, "description": "算法应对敌方电磁干扰的准确性，确保感知数据不受干扰影响。" },
-            { "id": "9.2.3.5",  "name": "鲁棒性-干扰条件下感知覆盖率（Perception Coverage Under Jamming）", "unit": "%", "targetValue": 80.0, "higherIsBetter": true, "description": "在电磁干扰环境下，感知分系统仍能有效覆盖战场的比例。" }
+            {
+              "id": "9.1.1.5a",
+              "name": "鲁棒性-抗干扰精度（Jamming Resistance Accuracy）-轻度干扰识别率",
+              "unit": "%",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "description": "算法应对敌方电磁干扰的准确性，确保感知数据不受干扰影响。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "9.1.1.5b",
+              "name": "鲁棒性-抗干扰精度（Jamming Resistance Accuracy）-中度干扰识别率",
+              "unit": "%",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "description": "算法应对敌方电磁干扰的准确性，确保感知数据不受干扰影响。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "9.2.3.5",
+              "name": "鲁棒性-干扰条件下感知覆盖率（Perception Coverage Under Jamming）",
+              "unit": "%",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "description": "在电磁干扰环境下，感知分系统仍能有效覆盖战场的比例。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
+            }
           ]
         },
         {
           "name": "功能性",
           "indicators": [
-            { "id": "9.1.1.6a", "name": "功能性-频谱监控精度（Spectrum Monitoring Accuracy）-干扰检测准确率", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "在电磁环境下准确检测到干扰信号并调整通信频率的能力。" },
-            { "id": "9.1.1.6b", "name": "功能性-频谱监控精度（Spectrum Monitoring Accuracy）-频率调整成功率", "unit": "%", "targetValue": 98.0, "higherIsBetter": true, "description": "在电磁环境下准确检测到干扰信号并调整通信频率的能力。" },
-            { "id": "9.1.1.10","name": "功能性-背景抑制性能（Background Suppression Performance）-识别率提升", "unit": "%", "targetValue": 20.0, "higherIsBetter": true, "description": "在复杂背景中有效抑制环境噪声和干扰的能力。" },
+            {
+              "id": "9.1.1.6a",
+              "name": "功能性-频谱监控精度（Spectrum Monitoring Accuracy）-干扰检测准确率",
+              "unit": "%",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "description": "在电磁环境下准确检测到干扰信号并调整通信频率的能力。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "9.1.1.6b",
+              "name": "功能性-频谱监控精度（Spectrum Monitoring Accuracy）-频率调整成功率",
+              "unit": "%",
+              "targetValue": 98.0,
+              "higherIsBetter": true,
+              "description": "在电磁环境下准确检测到干扰信号并调整通信频率的能力。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "9.1.1.10",
+              "name": "功能性-背景抑制性能（Background Suppression Performance）-识别率提升",
+              "unit": "%",
+              "targetValue": 20.0,
+              "higherIsBetter": true,
+              "description": "在复杂背景中有效抑制环境噪声和干扰的能力。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
             { "id": "9.1.2.4", "name": "功能性-遮蔽物识别智能（Occlusion Detection Intelligence）",           "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "感知算法智能识别并处理复杂遮蔽物。" },
-            { "id": "9.2.1.5", "name": "功能性-多传感器融合抗干扰能力（Multisensor Fusion Jamming Resistance Capability）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "多个传感器数据融合后，系统在电磁干扰下保持感知准确性的能力。" }
+            {
+              "id": "9.2.1.5",
+              "name": "功能性-多传感器融合抗干扰能力（Multisensor Fusion Jamming Resistance Capability）",
+              "unit": "%",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "description": "多个传感器数据融合后，系统在电磁干扰下保持感知准确性的能力。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
+            }
           ]
         },
         {
@@ -53,11 +125,38 @@
           "indicators": [
             { "id": "9.1.2.1",  "name": "智能性-威胁等级评估（Threat Assessment Intelligence）", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "感知算法对目标威胁的智能评估能力。" },
             { "id": "9.1.2.2",  "name": "智能性-敌方策略识别能力（Enemy Strategy Recognition Intelligence）", "unit": "%", "targetValue": 75.0, "higherIsBetter": true, "description": "感知算法能够识别和推测敌方战术意图的能力。" },
-            { "id": "9.1.2.5",  "name": "智能性-自适应频率选择（Adaptive Frequency Selection）",       "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "智能系统根据干扰动态自适应选择最佳通信频率。" },
+            {
+              "id": "9.1.2.5",
+              "name": "智能性-自适应频率选择（Adaptive Frequency Selection）",
+              "unit": "%",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "description": "智能系统根据干扰动态自适应选择最佳通信频率。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
             { "id": "9.1.2.7",  "name": "智能性-红外伪装识别智能（Infrared Camouflage Detection Intelligence）", "unit": "%", "targetValue": 80.0, "higherIsBetter": true, "description": "智能算法检测并揭示目标的红外伪装手段。" },
             { "id": "9.1.2.8",  "name": "智能性-动态目标识别智能（Dynamic Object Recognition Intelligence）",    "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "感知系统在动态环境中智能识别目标关键部位的能力。" },
-            { "id": "9.2.2.1a", "name": "智能性-干扰识别准确率（Interference Detection Intelligence）",         "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "识别并规避敌方电子干扰的智能水平。" },
-            { "id": "9.2.2.1b", "name": "智能性-干扰规避成功率（Interference Avoidance Intelligence）",        "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "识别并规避敌方电子干扰的智能水平。" },
+            {
+              "id": "9.2.2.1a",
+              "name": "智能性-干扰识别准确率（Interference Detection Intelligence）",
+              "unit": "%",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "description": "识别并规避敌方电子干扰的智能水平。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
+            {
+              "id": "9.2.2.1b",
+              "name": "智能性-干扰规避成功率（Interference Avoidance Intelligence）",
+              "unit": "%",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "description": "识别并规避敌方电子干扰的智能水平。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
             { "id": "9.2.2.2",  "name": "智能性-资源感知智能（Resource Perception Intelligence）",            "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "感知分系统智能识别并优先处理战场关键资源。" },
             { "id": "9.2.2.4a", "name": "智能性-传感器自适应调度-响应时间",                                 "unit": "s", "targetValue": 0.5, "higherIsBetter": false, "description": "感知分系统根据环境干扰智能调度传感器的使用频率和使用。" },
             { "id": "9.2.2.4b", "name": "智能性-传感器自适应调度-成功率",                                   "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "感知分系统根据环境干扰智能调度传感器的使用频率和使用。" }
@@ -68,7 +167,16 @@
           "indicators": [
             { "id": "9.1.2.3a", "name": "未来可扩展性-感知自适应性（Adaptive Perception）-响应时间",   "unit": "s",  "targetValue": 0.5, "higherIsBetter": false, "description": "根据不同场景动态调整感知策略的智能水平。" },
             { "id": "9.1.2.3b", "name": "未来可扩展性-感知自适应性（Adaptive Perception）-成功率",     "unit": "%",  "targetValue": 85.0, "higherIsBetter": true,  "description": "根据不同场景动态调整感知策略的智能水平。" },
-            { "id": "9.1.2.6",  "name": "未来可扩展性-干扰模式识别智能（Jamming Pattern Recognition Intelligence）", "unit": "%",  "targetValue": 90.0, "higherIsBetter": true, "description": "智能系统识别并分类敌方干扰模式的能力。" },
+            {
+              "id": "9.1.2.6",
+              "name": "未来可扩展性-干扰模式识别智能（Jamming Pattern Recognition Intelligence）",
+              "unit": "%",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "description": "智能系统识别并分类敌方干扰模式的能力。",
+              "algorithmNames": ["干扰对抗算法"],
+              "level": "algorithm"
+            },
             { "id": "9.2.2.5",  "name": "未来可扩展性-多模态感知智能（Multimodal Perception Intelligence）",     "unit": "%",  "targetValue": 98.0, "higherIsBetter": true, "description": "感知分系统基于多种传感器智能融合感知数据，并提供最佳的目标识别方案。" }
           ]
         },
@@ -137,8 +245,26 @@
         {
           "name": "智能性",
           "indicators": [
-            { "id": "9.2.2.1a", "name": "智能性-干扰识别准确率（Interference Detection Intelligence）", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "识别并规避敌方电子干扰的智能水平。" },
-            { "id": "9.2.2.1b", "name": "智能性-干扰规避成功率（Interference Avoidance Intelligence）", "unit": "%", "targetValue": 90.0, "higherIsBetter": true, "description": "识别并规避敌方电子干扰的智能水平。" },
+            {
+              "id": "9.2.2.1a",
+              "name": "智能性-干扰识别准确率（Interference Detection Intelligence）",
+              "unit": "%",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "description": "识别并规避敌方电子干扰的智能水平。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
+            },
+            {
+              "id": "9.2.2.1b",
+              "name": "智能性-干扰规避成功率（Interference Avoidance Intelligence）",
+              "unit": "%",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "description": "识别并规避敌方电子干扰的智能水平。",
+              "prototypeNames": ["干扰对抗分系统"],
+              "level": "system"
+            },
             { "id": "9.2.2.2", "name": "智能性-资源感知智能（Resource Perception Intelligence）", "unit": "%", "targetValue": 85.0, "higherIsBetter": true, "description": "感知分系统智能识别并优先处理战场关键资源。" },
             { "id": "9.2.2.4a", "name": "智能性-传感器自适应调度-响应时间", "unit": "s", "targetValue": 0.5, "higherIsBetter": false, "description": "感知分系统根据环境干扰智能调度传感器的使用频率和使用。" },
             { "id": "9.2.2.4b", "name": "智能性-传感器自适应调度-成功率", "unit": "%", "targetValue": 95.0, "higherIsBetter": true, "description": "感知分系统根据环境干扰智能调度传感器的使用频率和使用。" }

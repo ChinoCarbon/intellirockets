@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
 #include "Systems/ScenarioMenuSubsystem.h"
+#include "Systems/ScenarioTestMetrics.h"
 #include "Actors/RadarJammerActor.h"
 #include "EngineUtils.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -97,6 +98,15 @@ void AMockMissileActor::InitializeMissile(AActor* InTarget, float InLaunchSpeed,
 	CountermeasureActivationTime = -1.f;
 	LatestCountermeasureTime = -1.f;
 	LatestCountermeasureDistance = -1.f;
+	bJammerDetectionLogged = false;
+	JammerDetectionTime = -1.f;
+	JammerDetectionDistance = -1.f;
+	JammerDetectionBaseRadius = 0.f;
+	JammerDetectionHeightDifference = 0.f;
+	CountermeasureActivationDistanceToJammer = -1.f;
+	CountermeasureActivationBaseRadius = 0.f;
+	CountermeasureActivationHeightDifference = 0.f;
+	bCountermeasureStatsSubmitted = false;
 	bCountermeasureEnabled = false;
 	bHLAllocationEnabled = false;
 	// 注意：不要重置 bHasSplit，因为分裂的导弹需要保持这个状态
@@ -115,6 +125,10 @@ void AMockMissileActor::InitializeMissile(AActor* InTarget, float InLaunchSpeed,
 	CountermeasureActivationTime = -1.f;
 	LatestCountermeasureTime = -1.f;
 	LatestCountermeasureDistance = -1.f;
+	bIsSplitChild = false;
+	SplitGroupId = INDEX_NONE;
+	bUseFixedSplitTarget = false;
+	FixedSplitTargetLocation = FVector::ZeroVector;
 	
 	// 如果提供了目标，缓存其位置；否则使用默认方向
 	if (TargetActor.IsValid())
@@ -258,11 +272,39 @@ void AMockMissileActor::SetAlgorithmConfig(const TArray<FString>& AlgorithmNames
 	{
 		UE_LOG(LogTemp, Log, TEXT("[Missile %s] 启用轨迹优化算法（绕过干扰区域）"), *GetName());
 	}
+
+	bool bDetectedEvasionSubsystem = false;
+	for (const FString& PrototypeName : PrototypeNames)
+	{
+		if (PrototypeName.Contains(TEXT("躲避对抗")))
+		{
+			bDetectedEvasionSubsystem = true;
+			break;
+		}
+	}
+
+	SetEvasionSubsystemEnabled(bDetectedEvasionSubsystem);
+}
+
+void AMockMissileActor::SetEvasionSubsystemEnabled(bool bEnabled)
+{
+	bEvasiveSubsystemEnabled = bEnabled;
+	if (bEvasiveSubsystemEnabled)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Missile %s] 启用躲避对抗分系统：将主动规避拦截导弹"), *GetName());
+	}
+	else
+	{
+		bPerformingEvasiveManeuver = false;
+		EvasiveTimeRemaining = 0.f;
+		CurrentEvasiveDirection = FVector::ZeroVector;
+	}
 }
 
 void AMockMissileActor::SetSplitGeneration(int32 Generation)
 {
 	SplitGeneration = FMath::Max(0, Generation);
+	bIsSplitChild = (SplitGeneration > 0);
 	// 如果分裂层级 > 0，说明这是分裂生成的导弹，应该使用直线飞行
 	if (SplitGeneration > 0)
 	{
@@ -326,64 +368,76 @@ void AMockMissileActor::Tick(float DeltaSeconds)
 
 	if (!IsPendingKillPending() && !bHasImpacted)
 	{
-			// 更新干扰检测
-		UpdateJammerDetection();
-		
-		// 如果启用了轨迹优化，更新绕过路径（限制更新频率，避免频繁摆动）
-		if (bTrajectoryOptimizationEnabled)
+		if (bIsInterceptor)
 		{
-			if (ElapsedLifetime - LastTrajectoryOptimizationUpdate >= TrajectoryOptimizationUpdateInterval)
-			{
-				UpdateTrajectoryOptimization();
-				LastTrajectoryOptimizationUpdate = ElapsedLifetime;
-			}
-		}
-		
-		// 定期搜索目标（如果还没有目标，或者当前目标消失）
-		// 如果在干扰区域内，不搜索目标（失去目标）
-		// 注意：轨迹优化算法不会失去目标，而是绕过干扰区域
-		if ((!bInJammerRange || bTrajectoryOptimizationEnabled) && ElapsedLifetime - LastTargetSearchTime >= TargetSearchInterval)
-		{
-			SearchAndLockTarget();
-			LastTargetSearchTime = ElapsedLifetime;
-			
-			// 打印目标状态日志
-			if (TargetActor.IsValid())
-			{
-				UE_LOG(LogTemp, Log, TEXT("[Missile %s] 目标已锁定: %s (位置: %s, 距离: %.2f)"), 
-					*GetName(), 
-					*TargetActor->GetName(), 
-					*TargetActor->GetActorLocation().ToString(), 
-					FVector::Dist(GetActorLocation(), TargetActor->GetActorLocation()));
-			}
-			else
-			{
-				UE_LOG(LogTemp, Log, TEXT("[Missile %s] 当前无目标，正在搜索视野内的目标..."), *GetName());
-			}
-		}
-		else if (bInJammerRange && !bTrajectoryOptimizationEnabled)
-		{
-			// 在干扰区域内，清除目标（轨迹优化算法不会失去目标，而是绕过）
-			if (TargetActor.IsValid())
-			{
-				UE_LOG(LogTemp, Warning, TEXT("[Missile %s] 进入干扰区域，失去目标: %s"), 
-					*GetName(), *TargetActor->GetName());
-				TargetActor = nullptr;
-			}
-		}
-		
-		// 如果已经分裂或使用固定分裂目标，使用直线飞行（不再追踪）
-		if (bHasSplit || bUseFixedSplitTarget)
-		{
-			UpdateBallisticStraightLine(DeltaSeconds);
-		}
-		else if (bAscending)
-		{
-			UpdateAscent(DeltaSeconds);
+			UpdateInterceptorBehavior(DeltaSeconds);
 		}
 		else
 		{
-			UpdateHoming(DeltaSeconds);
+				// 更新干扰检测
+			UpdateJammerDetection();
+			
+			// 如果启用了轨迹优化，更新绕过路径（限制更新频率，避免频繁摆动）
+			if (bTrajectoryOptimizationEnabled)
+			{
+				if (ElapsedLifetime - LastTrajectoryOptimizationUpdate >= TrajectoryOptimizationUpdateInterval)
+				{
+					UpdateTrajectoryOptimization();
+					LastTrajectoryOptimizationUpdate = ElapsedLifetime;
+				}
+			}
+
+			if (bEvasiveSubsystemEnabled)
+			{
+				UpdateInterceptorAwareness(DeltaSeconds);
+			}
+			
+			// 定期搜索目标（如果还没有目标，或者当前目标消失）
+			// 如果在干扰区域内，不搜索目标（失去目标）
+			// 注意：轨迹优化算法不会失去目标，而是绕过干扰区域
+			if ((!bInJammerRange || bTrajectoryOptimizationEnabled) && ElapsedLifetime - LastTargetSearchTime >= TargetSearchInterval)
+			{
+				SearchAndLockTarget();
+				LastTargetSearchTime = ElapsedLifetime;
+				
+				// 打印目标状态日志
+				if (TargetActor.IsValid())
+				{
+					UE_LOG(LogTemp, Log, TEXT("[Missile %s] 目标已锁定: %s (位置: %s, 距离: %.2f)"), 
+						*GetName(), 
+						*TargetActor->GetName(), 
+						*TargetActor->GetActorLocation().ToString(), 
+						FVector::Dist(GetActorLocation(), TargetActor->GetActorLocation()));
+				}
+				else
+				{
+					UE_LOG(LogTemp, Log, TEXT("[Missile %s] 当前无目标，正在搜索视野内的目标..."), *GetName());
+				}
+			}
+			else if (bInJammerRange && !bTrajectoryOptimizationEnabled)
+			{
+				// 在干扰区域内，清除目标（轨迹优化算法不会失去目标，而是绕过）
+				if (TargetActor.IsValid())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[Missile %s] 进入干扰区域，失去目标: %s"), 
+						*GetName(), *TargetActor->GetName());
+					TargetActor = nullptr;
+				}
+			}
+			
+			// 如果已经分裂或使用固定分裂目标，使用直线飞行（不再追踪）
+			if (bHasSplit || bUseFixedSplitTarget)
+			{
+				UpdateBallisticStraightLine(DeltaSeconds);
+			}
+			else if (bAscending)
+			{
+				UpdateAscent(DeltaSeconds);
+			}
+			else
+			{
+				UpdateHoming(DeltaSeconds);
+			}
 		}
 	}
 
@@ -662,9 +716,36 @@ void AMockMissileActor::UpdateHoming(float DeltaSeconds)
 	
 	// 移动导弹（限制步长，避免瞬移）
 	const FVector Step = NewLocation - CurrentLocation;
-	const float MaxStepSize = Speed * DeltaSeconds * 1.5f; // 限制单帧最大移动距离
+	const float BaseMaxStepSize = Speed * DeltaSeconds * 1.5f; // 限制单帧最大移动距离
+	constexpr float EvasiveBoostReferenceTime = 0.9f;
+	float SpeedBoostFactor = 1.f;
+	if (bPerformingEvasiveManeuver && EvasiveSpeedBoostTime > 0.f)
+	{
+		const float BoostAlpha = FMath::Clamp(EvasiveSpeedBoostTime / EvasiveBoostReferenceTime, 0.f, 1.f);
+		SpeedBoostFactor = FMath::Lerp(1.f, EvasiveSpeedBoostMultiplier, BoostAlpha);
+	}
+	const float MaxStepSize = BaseMaxStepSize * SpeedBoostFactor;
 	const float StepSize = Step.Size();
-	const FVector FinalStep = StepSize > MaxStepSize ? Step.GetSafeNormal() * MaxStepSize : Step;
+	FVector FinalStep = StepSize > MaxStepSize ? Step.GetSafeNormal() * MaxStepSize : Step;
+
+	if (bPerformingEvasiveManeuver && !CurrentEvasiveDirection.IsNearlyZero())
+	{
+		const FVector EvasiveOffset = CurrentEvasiveDirection.GetSafeNormal() * Speed * DeltaSeconds * 0.85f;
+		FinalStep += EvasiveOffset;
+
+		if (SpeedBoostFactor > 1.f)
+		{
+			const FVector ForwardBoost = GetActorForwardVector().GetSafeNormal() * BaseMaxStepSize * (SpeedBoostFactor - 1.f);
+			FinalStep += ForwardBoost;
+		}
+
+		const float AdjustedSize = FinalStep.Size();
+		const float MaxAllowed = MaxStepSize * 1.35f;
+		if (AdjustedSize > MaxAllowed && AdjustedSize > KINDA_SMALL_NUMBER)
+		{
+			FinalStep = FinalStep.GetSafeNormal() * MaxAllowed;
+		}
+	}
 	FHitResult Hit;
 	AddActorWorldOffset(FinalStep, true, &Hit);
 	if (Hit.IsValidBlockingHit())
@@ -709,6 +790,25 @@ void AMockMissileActor::HandleImpact(AActor* HitActor)
 		return;
 	}
 
+	if (SplitGroupId != INDEX_NONE)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameInstance* GameInstance = World->GetGameInstance())
+			{
+				if (UScenarioMenuSubsystem* Subsystem = GameInstance->GetSubsystem<UScenarioMenuSubsystem>())
+				{
+					const FString HitName = (HitActor ? HitActor->GetName() : FString());
+					Subsystem->RegisterHLSplitGroupHit(SplitGroupId, HitName);
+					if (bIsSplitChild)
+					{
+						Subsystem->RegisterHLSplitChildHit();
+					}
+				}
+			}
+		}
+	}
+
 	// 注意：HL分配算法的分裂逻辑已经在UpdateHoming中处理（接近目标时分裂）
 	// 这里不再调用TrySplitForClusterTargets，因为应该在命中前就分裂
 
@@ -730,7 +830,8 @@ void AMockMissileActor::HandleImpact(AActor* HitActor)
 	{
 		if (UWorld* World = GetWorld())
 		{
-			DrawDebugLine(World, LastTrailLocation, GetActorLocation(), FColor::Red, true, TrailLifetime, 0, TrailThickness);
+			const FColor TrailColor = bIsInterceptor ? FColor(80, 160, 255) : FColor::Red;
+			DrawDebugLine(World, LastTrailLocation, GetActorLocation(), TrailColor, true, TrailLifetime, 0, TrailThickness);
 		}
 		bTrailActive = false;
 	}
@@ -763,7 +864,8 @@ void AMockMissileActor::UpdateTrail()
 
 	if (UWorld* World = GetWorld())
 	{
-		DrawDebugLine(World, LastTrailLocation, CurrentLocation, FColor::Red, true, TrailLifetime, 0, TrailThickness);
+		const FColor TrailColor = bIsInterceptor ? FColor(80, 160, 255) : FColor::Red;
+		DrawDebugLine(World, LastTrailLocation, CurrentLocation, TrailColor, true, TrailLifetime, 0, TrailThickness);
 	}
 
 	LastTrailLocation = CurrentLocation;
@@ -952,6 +1054,25 @@ void AMockMissileActor::UpdateJammerDetection()
 	bool bWasInRange = bInJammerRange;
 	bInJammerRange = IsInJammerRange();
 
+	ARadarJammerActor* NearestJammer = nullptr;
+	float NearestDistance = 0.f;
+	float NearestBaseRadius = 0.f;
+	float NearestHeightDiff = 0.f;
+	const bool bHasNearestJammer = GetNearestJammerInfo(NearestJammer, NearestDistance, NearestBaseRadius, NearestHeightDiff);
+
+	if (bHasNearestJammer && NearestJammer && !bJammerDetectionLogged)
+	{
+		const float DetectionRadius = NearestJammer->GetDetectionRadius();
+		if (NearestDistance <= DetectionRadius)
+		{
+			bJammerDetectionLogged = true;
+			JammerDetectionTime = ElapsedLifetime;
+			JammerDetectionDistance = NearestDistance;
+			JammerDetectionBaseRadius = NearestBaseRadius;
+			JammerDetectionHeightDifference = NearestHeightDiff;
+		}
+	}
+
 	if (!bCountermeasureEnabled)
 	{
 		// 如果启用了轨迹优化，不会失去目标，而是绕过干扰区域
@@ -984,6 +1105,15 @@ void AMockMissileActor::UpdateJammerDetection()
 	// 如果进入干扰区域
 	if (bInJammerRange && !bWasInRange)
 	{
+		if (!bJammerDetectionLogged && bHasNearestJammer && NearestJammer)
+		{
+			bJammerDetectionLogged = true;
+			JammerDetectionTime = ElapsedLifetime;
+			JammerDetectionDistance = NearestDistance;
+			JammerDetectionBaseRadius = NearestBaseRadius;
+			JammerDetectionHeightDifference = NearestHeightDiff;
+		}
+
 		UE_LOG(LogTemp, Warning, TEXT("[Missile %s] 进入雷达干扰区域，失去目标锁定"), *GetName());
 		
 		// 记录是否需要反制（如果还没有激活反制）
@@ -1040,26 +1170,15 @@ void AMockMissileActor::UpdateJammerDetection()
 					{
 						if (Jammer)
 						{
-							// 计算导弹到干扰器中心的距离
-							float DistanceToJammer = FVector::Dist(MissileLocation, Jammer->GetActorLocation());
+							const float LocalDistanceToJammer = FVector::Dist(MissileLocation, Jammer->GetActorLocation());
+							const float ActivationThreshold = Jammer->GetDetectionRadius();
 							
-							// 获取干扰器的基础半径
-							float BaseRadius = Jammer->GetBaseRadius();
-							// 激活距离 = BaseRadius * 1.5（与RadarJammerActor中的值保持一致）
-							const float ActivationDistance = BaseRadius * 1.5f;
-							const float ActivationThreshold = BaseRadius + ActivationDistance;
-							
-							// 只要导弹距离 < BaseRadius + ActivationDistance，就更新半径
-							// 这样导弹在进入干扰区域之前就会开始缩小半球
-							// 例如：BaseRadius=5000cm，激活距离=7500cm，激活阈值=12500cm
-							// 导弹在距离中心12500cm时就开始缩小，此时还在原始干扰区域（5000cm）外
-							if (DistanceToJammer < ActivationThreshold)
+							if (LocalDistanceToJammer < ActivationThreshold)
 							{
-								Jammer->UpdateRadiusByMissileDistance(DistanceToJammer);
+								Jammer->UpdateRadiusByMissileDistance(LocalDistanceToJammer);
 							}
 							else
 							{
-								// 距离太远，恢复原始半径
 								Jammer->ClearCountermeasure();
 							}
 						}
@@ -1075,6 +1194,25 @@ void AMockMissileActor::ActivateCountermeasure()
 	if (!bCountermeasureActive)
 	{
 		bCountermeasureActive = true;
+		ARadarJammerActor* NearestJammer = nullptr;
+	float NearestDistanceToJammer = -1.f;
+		float BaseRadius = 0.f;
+		float HeightDifference = 0.f;
+	if (GetNearestJammerInfo(NearestJammer, NearestDistanceToJammer, BaseRadius, HeightDifference))
+		{
+		CountermeasureActivationDistanceToJammer = NearestDistanceToJammer;
+			CountermeasureActivationBaseRadius = BaseRadius;
+			CountermeasureActivationHeightDifference = HeightDifference;
+
+			if (!bJammerDetectionLogged)
+			{
+				bJammerDetectionLogged = true;
+				JammerDetectionTime = ElapsedLifetime;
+			JammerDetectionDistance = NearestDistanceToJammer;
+				JammerDetectionBaseRadius = BaseRadius;
+				JammerDetectionHeightDifference = HeightDifference;
+			}
+		}
 		CountermeasureActivationTime = ElapsedLifetime;
 		UE_LOG(LogTemp, Log, TEXT("[Missile %s] 激活反制系统，时间: %.2f秒"), *GetName(), CountermeasureActivationTime);
 		
@@ -1119,85 +1257,148 @@ void AMockMissileActor::TrySplitForClusterTargets(AActor* HitActor)
 		return;
 	}
 
-	if (UWorld* World = GetWorld())
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		if (UGameInstance* GameInstance = World->GetGameInstance())
+		return;
+	}
+
+	UGameInstance* GameInstance = World->GetGameInstance();
+	if (!GameInstance)
+	{
+		return;
+	}
+
+	UScenarioMenuSubsystem* Subsystem = GameInstance->GetSubsystem<UScenarioMenuSubsystem>();
+	if (!Subsystem)
+	{
+		return;
+	}
+
+	Subsystem->RegisterHLSplitAttempt();
+
+	TArray<AActor*> BlueUnits;
+	Subsystem->GetActiveBlueUnits(BlueUnits);
+
+	const FVector ImpactLocation = ReferenceActor->GetActorLocation();
+	const float ClusterRadius = 8000.f;
+	const int32 MaxTotalMissiles = 4;
+	const int32 AdditionalSlots = MaxTotalMissiles - 1;
+
+	TArray<AActor*> CandidateTargets;
+	for (AActor* Candidate : BlueUnits)
+	{
+		if (!Candidate || Candidate == ReferenceActor)
 		{
-			if (UScenarioMenuSubsystem* Subsystem = GameInstance->GetSubsystem<UScenarioMenuSubsystem>())
-			{
-				TArray<AActor*> BlueUnits;
-				Subsystem->GetActiveBlueUnits(BlueUnits);
-
-				const FVector ImpactLocation = ReferenceActor->GetActorLocation();
-				const float ClusterRadius = 8000.f;
-				const int32 MaxTotalMissiles = 4;
-				const int32 AdditionalSlots = MaxTotalMissiles - 1;
-
-				TArray<AActor*> CandidateTargets;
-				for (AActor* Candidate : BlueUnits)
-				{
-					if (!Candidate || Candidate == ReferenceActor)
-					{
-						continue;
-					}
-
-					if (FVector::Dist(ImpactLocation, Candidate->GetActorLocation()) <= ClusterRadius)
-					{
-						CandidateTargets.Add(Candidate);
-					}
-				}
-
-				if (CandidateTargets.Num() == 0)
-				{
-					return;
-				}
-
-				struct FTargetDistanceSorter
-				{
-					FVector RefLocation;
-					bool operator()(const AActor& A, const AActor& B) const
-					{
-						return FVector::DistSquared(RefLocation, A.GetActorLocation()) < FVector::DistSquared(RefLocation, B.GetActorLocation());
-					}
-				};
-
-				CandidateTargets.Sort(FTargetDistanceSorter{ ImpactLocation });
-
-				const int32 SpawnCount = FMath::Min(AdditionalSlots, CandidateTargets.Num());
-				if (SpawnCount <= 0)
-				{
-					return;
-				}
-
-				bHasSplit = true;
-
-				for (int32 i = 0; i < SpawnCount; ++i)
-				{
-					AActor* Candidate = CandidateTargets[i];
-					if (!Candidate)
-					{
-						continue;
-					}
-
-					const FVector SpawnLocation = GetActorLocation() + FMath::VRand() * 30.f;
-					const FVector Direction = (Candidate->GetActorLocation() - SpawnLocation).GetSafeNormal();
-					if (Direction.IsNearlyZero())
-					{
-						continue;
-					}
-
-				const FRotator SpawnRotation = Direction.Rotation();
-				if (AMockMissileActor* NewMissile = Subsystem->SpawnMissile(World, Candidate, false, &SpawnLocation, &SpawnRotation))
-				{
-					// 设置分裂层级（会自动设置 bHasSplit = true 和 bAscending = false）
-					NewMissile->SetSplitGeneration(SplitGeneration + 1);
-					// 设置固定目标位置（直线飞行模式）
-					NewMissile->SetFixedSplitTarget(Candidate->GetActorLocation());
-					UE_LOG(LogTemp, Log, TEXT("[Missile %s] HL 分配：生成分裂导弹 -> %s (直线飞行模式)"), *GetName(), *Candidate->GetName());
-				}
-				}
-			}
+			continue;
 		}
+
+		if (FVector::Dist(ImpactLocation, Candidate->GetActorLocation()) <= ClusterRadius)
+		{
+			CandidateTargets.Add(Candidate);
+		}
+	}
+
+	if (CandidateTargets.Num() == 0)
+	{
+		return;
+	}
+
+	struct FTargetDistanceSorter
+	{
+		FVector RefLocation;
+		bool operator()(const AActor& A, const AActor& B) const
+		{
+			return FVector::DistSquared(RefLocation, A.GetActorLocation()) < FVector::DistSquared(RefLocation, B.GetActorLocation());
+		}
+	};
+
+	CandidateTargets.Sort(FTargetDistanceSorter{ ImpactLocation });
+
+	const int32 SpawnCount = FMath::Min(AdditionalSlots, CandidateTargets.Num());
+	if (SpawnCount <= 0)
+	{
+		return;
+	}
+
+	bHasSplit = true;
+
+	const FVector ParentForward = GetActorForwardVector().GetSafeNormal().IsNearlyZero() ? FVector::ForwardVector : GetActorForwardVector().GetSafeNormal();
+	FVector ParentRight = FVector::CrossProduct(ParentForward, FVector::UpVector).GetSafeNormal();
+	if (ParentRight.IsNearlyZero())
+	{
+		ParentRight = FVector::RightVector;
+	}
+	const float BaseForwardOffset = 150.f;
+	const float LateralSpacing = 200.f;
+	const float VerticalOffset = 60.f;
+
+	const int32 AssignedTargets = 1 + SpawnCount;
+	const int32 NewSplitGroupId = Subsystem->RegisterHLSplitSuccess(AssignedTargets);
+	SetSplitGroupId(NewSplitGroupId);
+	Subsystem->UpdateMissileSplitMeta(this, false, NewSplitGroupId);
+
+	TArray<AMockMissileActor*> SpawnedChildren;
+	SpawnedChildren.Reserve(SpawnCount);
+
+	for (int32 i = 0; i < SpawnCount; ++i)
+	{
+		AActor* Candidate = CandidateTargets[i];
+		if (!Candidate)
+		{
+			continue;
+		}
+
+		const float SpreadIndex = (SpawnCount > 1) ? (i - (SpawnCount - 1) * 0.5f) : 0.f;
+		const FVector SpawnLocation = GetActorLocation()
+			+ ParentForward * (BaseForwardOffset + i * 40.f)
+			+ ParentRight * (SpreadIndex * LateralSpacing)
+			+ FVector::UpVector * VerticalOffset;
+
+		const FVector Direction = (Candidate->GetActorLocation() - SpawnLocation).GetSafeNormal();
+		if (Direction.IsNearlyZero())
+		{
+			continue;
+		}
+
+		const FRotator SpawnRotation = Direction.Rotation();
+		if (AMockMissileActor* NewMissile = Subsystem->SpawnMissile(World, Candidate, false, &SpawnLocation, &SpawnRotation))
+		{
+			NewMissile->SetSplitGeneration(SplitGeneration + 1);
+			NewMissile->SetSplitGroupId(NewSplitGroupId);
+			NewMissile->SetFixedSplitTarget(Candidate->GetActorLocation());
+			Subsystem->RegisterHLSplitChildSpawn();
+			Subsystem->UpdateMissileSplitMeta(NewMissile, true, NewSplitGroupId);
+			SpawnedChildren.Add(NewMissile);
+			UE_LOG(LogTemp, Log, TEXT("[Missile %s] HL 分配：生成分裂导弹 -> %s (直线飞行模式)"), *GetName(), *Candidate->GetName());
+		}
+	}
+
+	for (AMockMissileActor* Child : SpawnedChildren)
+	{
+		if (!Child)
+		{
+			continue;
+		}
+		Child->AddCollisionIgnoreActor(this);
+		AddCollisionIgnoreActor(Child);
+
+		for (AMockMissileActor* OtherChild : SpawnedChildren)
+		{
+			if (!OtherChild || Child == OtherChild)
+			{
+				continue;
+			}
+			Child->AddCollisionIgnoreActor(OtherChild);
+		}
+	}
+}
+
+void AMockMissileActor::AddCollisionIgnoreActor(AActor* ActorToIgnore)
+{
+	if (CollisionComponent && ActorToIgnore)
+	{
+		CollisionComponent->IgnoreActorWhenMoving(ActorToIgnore, true);
 	}
 }
 
@@ -1230,6 +1431,7 @@ void AMockMissileActor::LogCountermeasureStats() const
 	// 如果未启用反制功能，不记录统计信息
 	if (!bCountermeasureEnabled)
 	{
+		SubmitCountermeasureStats();
 		return;
 	}
 	
@@ -1261,6 +1463,44 @@ void AMockMissileActor::LogCountermeasureStats() const
 	}
 	
 	UE_LOG(LogTemp, Log, TEXT("=========================================="));
+	SubmitCountermeasureStats();
+}
+
+void AMockMissileActor::SubmitCountermeasureStats() const
+{
+	if (bCountermeasureStatsSubmitted)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		if (UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			if (UScenarioMenuSubsystem* Subsystem = GameInstance->GetSubsystem<UScenarioMenuSubsystem>())
+			{
+				FMissileCountermeasureStats Stats;
+				Stats.bCountermeasureEnabled = bCountermeasureEnabled;
+				Stats.bDetectionLogged = bJammerDetectionLogged;
+				Stats.DetectionTime = JammerDetectionTime;
+				Stats.DetectionDistanceToJammer = JammerDetectionDistance;
+				Stats.DetectionBaseRadius = JammerDetectionBaseRadius;
+				Stats.DetectionHeightDifference = JammerDetectionHeightDifference;
+				Stats.bCountermeasureTriggered = bShouldUseCountermeasure;
+				Stats.CountermeasureTriggerTime = LatestCountermeasureTime;
+				Stats.CountermeasureTargetDistance = LatestCountermeasureDistance;
+				Stats.bCountermeasureActivated = (CountermeasureActivationTime >= 0.f);
+				Stats.CountermeasureActivationTime = CountermeasureActivationTime;
+				Stats.CountermeasureActivationDistanceToJammer = CountermeasureActivationDistanceToJammer;
+				Stats.CountermeasureActivationBaseRadius = CountermeasureActivationBaseRadius;
+				Stats.CountermeasureActivationHeightDifference = CountermeasureActivationHeightDifference;
+
+				Subsystem->UpdateMissileCountermeasureStats(const_cast<AMockMissileActor*>(this), Stats);
+			}
+		}
+	}
+
+	bCountermeasureStatsSubmitted = true;
 }
 
 void AMockMissileActor::UpdateBallisticStraightLine(float DeltaSeconds)
@@ -1612,6 +1852,350 @@ void AMockMissileActor::UpdateTrajectoryOptimization()
 				UE_LOG(LogTemp, Warning, TEXT("[Missile %s] 提前检测到路径将经过干扰区域，计算绕过航点避免进入: %s"), 
 					*GetName(), *AvoidanceWaypoint.ToString());
 			}
+		}
+	}
+}
+
+bool AMockMissileActor::GetNearestJammerInfo(ARadarJammerActor*& OutJammer, float& OutDistance, float& OutBaseRadius, float& OutHeightDifference) const
+{
+	OutJammer = nullptr;
+	OutDistance = 0.f;
+	OutBaseRadius = 0.f;
+	OutHeightDifference = 0.f;
+
+	if (UWorld* World = const_cast<AMockMissileActor*>(this)->GetWorld())
+	{
+		if (UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			if (UScenarioMenuSubsystem* Subsystem = GameInstance->GetSubsystem<UScenarioMenuSubsystem>())
+			{
+				TArray<ARadarJammerActor*> Jammers;
+				Subsystem->GetActiveRadarJammers(Jammers);
+
+				const FVector MissileLocation = GetActorLocation();
+				float BestDistance = TNumericLimits<float>::Max();
+
+				for (ARadarJammerActor* Jammer : Jammers)
+				{
+					if (!Jammer)
+					{
+						continue;
+					}
+
+					const float Distance = FVector::Dist(MissileLocation, Jammer->GetActorLocation());
+					if (Distance < BestDistance)
+					{
+						BestDistance = Distance;
+						OutJammer = Jammer;
+						OutDistance = Distance;
+						OutBaseRadius = Jammer->GetBaseRadius();
+						OutHeightDifference = MissileLocation.Z - Jammer->GetActorLocation().Z;
+					}
+				}
+
+				return OutJammer != nullptr;
+			}
+		}
+	}
+
+	return false;
+}
+
+void AMockMissileActor::ConfigureInterceptorRole(AMockMissileActor* TargetMissile, float InterceptorSpeed, float InMaxLifetime)
+{
+	bIsInterceptor = true;
+	InterceptorTargetMissile = TargetMissile;
+	TargetActor = TargetMissile;
+
+	Speed = InterceptorSpeed;
+	AscentSpeed = InterceptorSpeed;
+	MaxLifetime = InMaxLifetime;
+	bAscending = false;
+	AscentHeight = 0.f;
+	bCountermeasureEnabled = false;
+	bTrajectoryOptimizationEnabled = false;
+	bHasAvoidanceWaypoint = false;
+	bHLAllocationEnabled = false;
+	bUseFixedSplitTarget = false;
+	bEvasiveSubsystemEnabled = false;
+	bPerformingEvasiveManeuver = false;
+	EvasiveTimeRemaining = 0.f;
+	CurrentEvasiveDirection = FVector::ZeroVector;
+
+	UE_LOG(LogTemp, Log, TEXT("[Missile %s] 配置为拦截导弹，目标=%s，速度=%.1f"), 
+		*GetName(),
+		TargetMissile ? *TargetMissile->GetName() : TEXT("未知"),
+		Speed);
+}
+
+void AMockMissileActor::UpdateInterceptorBehavior(float DeltaSeconds)
+{
+	if (bHasImpacted)
+	{
+		return;
+	}
+
+	AActor* Target = TargetActor.Get();
+	if (!Target || Target->IsPendingKillPending())
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Missile %s] 拦截目标失效，拦截导弹自毁"), *GetName());
+		TriggerImpact(nullptr);
+		return;
+	}
+
+	const FVector CurrentLocation = GetActorLocation();
+	const FVector TargetLocation = Target->GetActorLocation();
+	FVector Direction = (TargetLocation - CurrentLocation).GetSafeNormal();
+	if (Direction.IsNearlyZero())
+	{
+		Direction = GetActorForwardVector();
+	}
+
+	const float StepSize = Speed * DeltaSeconds * 0.95f;
+	const FRotator CurrentRotation = GetActorRotation();
+	const FRotator TargetRotation = Direction.Rotation();
+	const float MaxTurnRate = 90.f; // degrees per second
+	const FRotator NewRotation = FMath::RInterpConstantTo(CurrentRotation, TargetRotation, DeltaSeconds, MaxTurnRate);
+	const FVector MoveDirection = NewRotation.Vector();
+	FHitResult Hit;
+	AddActorWorldOffset(MoveDirection * StepSize, true, &Hit);
+	SetActorRotation(NewRotation);
+
+	if (Hit.IsValidBlockingHit())
+	{
+		HandleImpact(Hit.GetActor());
+		return;
+	}
+
+	const float DistanceToTarget = FVector::Dist(GetActorLocation(), TargetLocation);
+	if (DistanceToTarget <= 400.f)
+	{
+		TriggerImpact(Target);
+	}
+}
+
+void AMockMissileActor::HandleInterceptedByEnemy(AMockMissileActor* Interceptor)
+{
+	if (bHasImpacted)
+	{
+		return;
+	}
+
+	bHasImpacted = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("[Missile %s] 被拦截导弹 %s 击毁，任务失败"), 
+		*GetName(),
+		Interceptor ? *Interceptor->GetName() : TEXT("未知"));
+
+	ClearJammerCountermeasure();
+	LogCountermeasureStats();
+
+	if (bTrailActive)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			const FColor TrailColor = bIsInterceptor ? FColor(80, 160, 255) : FColor::Red;
+			DrawDebugLine(World, LastTrailLocation, GetActorLocation(), TrailColor, true, TrailLifetime, 0, TrailThickness);
+		}
+		bTrailActive = false;
+	}
+
+	OnImpact.Broadcast(this, Interceptor);
+	if (!bExpiredNotified)
+	{
+		bExpiredNotified = true;
+		OnExpired.Broadcast(this);
+	}
+
+	if (!IsPendingKillPending())
+	{
+		Destroy();
+	}
+}
+
+void AMockMissileActor::UpdateInterceptorAwareness(float DeltaSeconds)
+{
+	EvasionCooldown = FMath::Max(0.f, EvasionCooldown - DeltaSeconds);
+	if (EvasiveSpeedBoostTime > 0.f)
+	{
+		EvasiveSpeedBoostTime = FMath::Max(0.f, EvasiveSpeedBoostTime - DeltaSeconds);
+	}
+
+	if (bPerformingEvasiveManeuver)
+	{
+		EvasiveTimeRemaining -= DeltaSeconds;
+		if (EvasiveTimeRemaining <= 0.f)
+		{
+			StopEvasiveManeuver();
+		}
+		else if (!CurrentEvasiveDirection.IsNearlyZero())
+		{
+			EvasiveDirectionFlipTimer -= DeltaSeconds;
+			if (EvasiveDirectionFlipTimer <= 0.f)
+			{
+				CurrentEvasiveDirection = -CurrentEvasiveDirection;
+				EvasiveDirectionFlipTimer = EvasiveDirectionFlipInterval;
+				UE_LOG(LogTemp, Log, TEXT("[Missile %s] 躲避动作方向反转 -> %s"),
+					*GetName(), *CurrentEvasiveDirection.ToString());
+			}
+		}
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	if (UGameInstance* GameInstance = World->GetGameInstance())
+	{
+		if (UScenarioMenuSubsystem* Subsystem = GameInstance->GetSubsystem<UScenarioMenuSubsystem>())
+		{
+			TArray<AMockMissileActor*> Interceptors;
+			Subsystem->GetActiveInterceptorMissiles(Interceptors);
+
+			AMockMissileActor* ClosestThreat = nullptr;
+			float ClosestDistance = TNumericLimits<float>::Max();
+
+			for (AMockMissileActor* Candidate : Interceptors)
+			{
+				if (!Candidate || Candidate == this)
+				{
+					continue;
+				}
+
+				if (!Candidate->IsInterceptor() || Candidate->GetInterceptorTarget() != this)
+				{
+					continue;
+				}
+
+				const float Distance = FVector::Dist(Candidate->GetActorLocation(), GetActorLocation());
+				if (Distance < ClosestDistance)
+				{
+					ClosestDistance = Distance;
+					ClosestThreat = Candidate;
+				}
+			}
+
+			const float TriggerDistance = 15000.f;
+			const float ReleaseDistance = 22000.f;
+
+			if (ClosestThreat && ClosestDistance <= TriggerDistance && EvasionCooldown <= 0.f)
+			{
+				const FVector ThreatDirection = (ClosestThreat->GetActorLocation() - GetActorLocation()).GetSafeNormal();
+				StartEvasiveManeuver(ThreatDirection);
+			}
+			else if ((!ClosestThreat || ClosestDistance > ReleaseDistance) && bPerformingEvasiveManeuver)
+			{
+				StopEvasiveManeuver();
+			}
+		}
+	}
+}
+
+void AMockMissileActor::StartEvasiveManeuver(const FVector& ThreatDirection)
+{
+	FVector Perpendicular = FVector::CrossProduct(ThreatDirection, FVector::UpVector);
+	if (Perpendicular.IsNearlyZero())
+	{
+		Perpendicular = FVector::CrossProduct(ThreatDirection, FVector::RightVector);
+	}
+
+	if (Perpendicular.IsNearlyZero())
+	{
+		return;
+	}
+
+	const float DirectionSign = FMath::RandBool() ? 1.f : -1.f;
+	const bool bThreatFromAbove = ThreatDirection.Z < -0.2f;
+	const bool bCurrentlyDiving = Velocity.Z < -200.f;
+	FVector CombinedDirection = Perpendicular.GetSafeNormal() * DirectionSign;
+
+	if (bThreatFromAbove || bCurrentlyDiving)
+	{
+		const float VerticalBias = bCurrentlyDiving ? -0.9f : -0.6f;
+		CombinedDirection += FVector(0.f, 0.f, VerticalBias);
+	}
+
+	if (CombinedDirection.IsNearlyZero())
+	{
+		CombinedDirection = Perpendicular.GetSafeNormal() * DirectionSign;
+	}
+
+	CurrentEvasiveDirection = CombinedDirection.GetSafeNormal();
+	bPerformingEvasiveManeuver = true;
+	EvasiveTimeRemaining = 1.8f;
+	EvasionCooldown = 2.5f;
+	EvasiveDirectionFlipTimer = EvasiveDirectionFlipInterval;
+	EvasiveSpeedBoostTime = 1.2f;
+
+	UE_LOG(LogTemp, Log, TEXT("[Missile %s] 触发躲避动作，方向=%s"), 
+		*GetName(),
+		*CurrentEvasiveDirection.ToString());
+}
+
+void AMockMissileActor::StopEvasiveManeuver()
+{
+	if (!bPerformingEvasiveManeuver)
+	{
+		return;
+	}
+
+	bPerformingEvasiveManeuver = false;
+	EvasiveTimeRemaining = 0.f;
+	CurrentEvasiveDirection = FVector::ZeroVector;
+	EvasiveDirectionFlipTimer = 0.f;
+	EvasiveSpeedBoostTime = 0.f;
+
+	UE_LOG(LogTemp, Log, TEXT("[Missile %s] 结束躲避动作"), *GetName());
+}
+
+int32 AMockMissileActor::GetSplitGroupId() const
+{
+	return SplitGroupId;
+}
+
+bool AMockMissileActor::IsSplitChild() const
+{
+	return bIsSplitChild;
+}
+
+void AMockMissileActor::GetCountermeasureStats(FMissileCountermeasureStats& OutStats) const
+{
+	OutStats.bCountermeasureEnabled = bCountermeasureEnabled;
+	OutStats.bDetectionLogged = bJammerDetectionLogged;
+	OutStats.bCountermeasureActivated = bCountermeasureActive;
+	OutStats.DetectionTime = JammerDetectionTime;
+	OutStats.DetectionDistanceToJammer = JammerDetectionDistance;
+	OutStats.DetectionBaseRadius = JammerDetectionBaseRadius;
+	OutStats.DetectionHeightDifference = JammerDetectionHeightDifference;
+	OutStats.CountermeasureActivationTime = CountermeasureActivationTime;
+	OutStats.CountermeasureActivationDistanceToJammer = CountermeasureActivationDistanceToJammer;
+	OutStats.CountermeasureActivationBaseRadius = CountermeasureActivationBaseRadius;
+	OutStats.CountermeasureActivationHeightDifference = CountermeasureActivationHeightDifference;
+	OutStats.bEnteredJammerRange = bInJammerRange || (CountermeasureActivationTime >= 0.f);
+	
+	// 计算反制激活时的半径缩减率（如果已激活）
+	if (bCountermeasureActive && CountermeasureActivationTime >= 0.f && CountermeasureActivationBaseRadius > KINDA_SMALL_NUMBER)
+	{
+		const float BaseRadius = CountermeasureActivationBaseRadius;
+		const float DistanceToJammer = CountermeasureActivationDistanceToJammer;
+		const float ActivationDistance = BaseRadius * 1.5f; // CountermeasureActivationDistanceMultiplier
+		const float ActivationThreshold = BaseRadius + ActivationDistance;
+		
+		if (DistanceToJammer >= 0.f && DistanceToJammer < ActivationThreshold)
+		{
+			// 计算归一化距离
+			float NormalizedDistance = (ActivationThreshold - DistanceToJammer) / ActivationDistance;
+			NormalizedDistance = FMath::Clamp(NormalizedDistance, 0.f, 1.f);
+			
+			// 使用立方衰减公式计算缩减后的半径
+			float NormalizedDistanceCubed = NormalizedDistance * NormalizedDistance * NormalizedDistance;
+			float ReductionFactor = FMath::Lerp(1.f, 0.05f, NormalizedDistanceCubed);
+			float CurrentRadius = BaseRadius * ReductionFactor;
+			
+			// 计算缩减百分比
+			OutStats.CountermeasureActivationRadiusReductionPercent = (1.f - (CurrentRadius / BaseRadius)) * 100.f;
 		}
 	}
 }

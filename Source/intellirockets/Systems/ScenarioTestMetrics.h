@@ -2,6 +2,29 @@
 
 #include "CoreMinimal.h"
 
+struct FMissileCountermeasureStats
+{
+	bool bCountermeasureEnabled = false;
+	bool bDetectionLogged = false;
+	bool bCountermeasureTriggered = false;
+	bool bCountermeasureActivated = false;
+	float DetectionTime = -1.f;
+	float DetectionDistanceToJammer = -1.f;
+	float DetectionBaseRadius = 0.f;
+	float DetectionHeightDifference = 0.f;
+	float CountermeasureTriggerTime = -1.f;
+	float CountermeasureTargetDistance = -1.f;
+	float CountermeasureActivationTime = -1.f;
+	float CountermeasureActivationDistanceToJammer = -1.f;
+	float CountermeasureActivationBaseRadius = 0.f;
+	float CountermeasureActivationHeightDifference = 0.f;
+	float CountermeasureActivationRadiusReductionPercent = 0.f; // 反制激活时的半径缩减百分比
+	float CountermeasureDuration = 0.f; // 干扰持续时间（从激活到离开/命中）
+	bool bLostTargetInJammerRange = false; // 是否在干扰区域内失去目标
+	bool bEnteredJammerRange = false; // 是否进入过干扰区域
+	float JammerRangeExitTime = -1.f; // 离开干扰区域的时间
+};
+
 struct FMissileTestRecord
 {
 	double LaunchTimeSeconds = 0.0;
@@ -18,6 +41,9 @@ struct FMissileTestRecord
 	int32 DestroyedCount = 0;
 	bool bExpired = false;
 	bool bTargetDestroyed = false;
+	bool bIsSplitChild = false;
+	int32 SplitGroupId = INDEX_NONE;
+	FMissileCountermeasureStats CountermeasureStats;
 
 	float GetFlightDuration() const
 	{
@@ -42,6 +68,24 @@ struct FMissileTestSummary
 	float AverageDestroyedPerHit = 0.f;
 	float AverageAutoLaunchInterval = 0.f;
 	float SessionDuration = 0.f;
+
+	int32 HLSplitAttemptCount = 0;
+	int32 HLSplitSuccessCount = 0;
+	int32 HLSplitChildShotCount = 0;
+	int32 HLSplitChildHitCount = 0;
+	int32 HLSplitGroupCount = 0;
+	float HLSplitGroupUniqueTargetsTotal = 0.f;
+	int32 CountermeasureDetectionSamples = 0;
+	float CountermeasureAverageDetectionMarginPercent = 0.f;
+	int32 CountermeasureActivationSamples = 0;
+	float CountermeasureAverageActivationDelay = 0.f;
+	float CountermeasureOnTimeRate = 0.f;
+	float CountermeasureAverageActivationDistance = 0.f;
+	float CountermeasureAverageActivationHeightDiff = 0.f;
+	float CountermeasureSuppressionSuccessRate = 0.f; // 干扰抑制成功率
+	float CountermeasureAverageRadiusReductionRate = 0.f; // 平均反制半径缩减率
+	float CountermeasureCoverageSuccessRate = 0.f; // 干扰覆盖成功率
+	float CountermeasureAverageDuration = 0.f; // 平均干扰持续时间
 };
 
 struct FIndicatorEvaluationResult

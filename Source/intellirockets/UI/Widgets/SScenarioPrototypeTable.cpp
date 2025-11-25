@@ -78,7 +78,8 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 			PrototypeRows = {
 				{ TEXT("近程飞行器样机A"), TEXT("近距目标快速检测与跟踪，低空抗遮挡优化") },
 				{ TEXT("中程飞行器样机B"), TEXT("多目标并发识别与跟踪，抗干扰融合") },
-				{ TEXT("远程飞行器样机C"), TEXT("远距离热源探测与红外伪装识别") }
+				{ TEXT("远程飞行器样机C"), TEXT("远距离热源探测与红外伪装识别") },
+				{ TEXT("干扰对抗分系统"), TEXT("电磁压制场景下的抗干扰与频谱管理分系统") }
 			};
 		}
 		else
@@ -87,7 +88,9 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 			PrototypeRows = {
 				{ TEXT("作战样机Alpha"), TEXT("编队协同与任务分配，航迹重规划") },
 				{ TEXT("作战样机Bravo"), TEXT("对抗策略学习与资源分配优化") },
-				{ TEXT("作战样机Charlie"), TEXT("多智能体协同决策与冲突消解") }
+				{ TEXT("作战样机Charlie"), TEXT("多智能体协同决策与冲突消解") },
+				{ TEXT("干扰对抗分系统"), TEXT("电磁压制场景下的抗干扰与频谱管理分系统") },
+				{ TEXT("躲避对抗分系统"), TEXT("抗拦截机动和避障控制分系统") }
 			};
 		}
 

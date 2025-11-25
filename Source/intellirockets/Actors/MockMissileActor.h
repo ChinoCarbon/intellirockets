@@ -41,11 +41,33 @@ public:
 	/** 设置电磁干扰场景标志，调整飞行高度 */
 	void SetInterferenceMode(bool bActive);
 
+	int32 GetSplitGroupId() const;
+	bool IsSplitChild() const;
+	bool IsCountermeasureEnabled() const { return bCountermeasureEnabled; }
+	
+	/** 获取反制统计数据（供ScenarioMenuSubsystem使用） */
+	void GetCountermeasureStats(struct FMissileCountermeasureStats& OutStats) const;
+
 	/** 设置外观（静态网格 + 基础材质 + 颜色） */
 	void SetupAppearance(UStaticMesh* InMesh, UMaterialInterface* InBaseMaterial, const FLinearColor& TintColor);
 
 	/** 手动触发命中，用于外部判定（例如碰撞回调） */
 	void TriggerImpact(AActor* OtherActor);
+
+	/** 启用或禁用躲避对抗分系统效果（根据分系统配置） */
+	void SetEvasionSubsystemEnabled(bool bEnabled);
+
+	/** 将当前导弹配置为拦截导弹，指定目标导弹与速度 */
+	void ConfigureInterceptorRole(AMockMissileActor* TargetMissile, float InterceptorSpeed, float InMaxLifetime);
+
+	/** 返回是否为拦截导弹 */
+	bool IsInterceptor() const { return bIsInterceptor; }
+
+	/** 获取拦截导弹当前锁定的目标导弹（仅拦截导弹有效） */
+	AMockMissileActor* GetInterceptorTarget() const { return InterceptorTargetMissile.Get(); }
+
+	/** 被拦截导弹命中时调用 */
+	void HandleInterceptedByEnemy(AMockMissileActor* Interceptor);
 
 	/** 命中事件：会在命中目标或接近距离内触发 */
 	FOnMissileImpactSignature OnImpact;
@@ -114,6 +136,7 @@ private:
 	void UpdateHoming(float DeltaSeconds);
 	void UpdateBallisticStraightLine(float DeltaSeconds);
 	void SetFixedSplitTarget(const FVector& Location);
+	void SetSplitGroupId(int32 InGroupId) { SplitGroupId = InGroupId; }
 	
 	// 目标搜索相关
 	bool IsTargetInView(AActor* Candidate) const;
@@ -135,6 +158,15 @@ private:
 	float LatestCountermeasureDistance = -1.f; // 最晚需要反制时与目标的距离
 	bool bShouldUseCountermeasure = false; // 是否需要使用反制
 	bool bElectromagneticInterferenceActive = false; // 是否处于电磁干扰测试环境
+	bool bJammerDetectionLogged = false;
+	float JammerDetectionTime = -1.f;
+	float JammerDetectionDistance = -1.f;
+	float JammerDetectionBaseRadius = 0.f;
+	float JammerDetectionHeightDifference = 0.f;
+	float CountermeasureActivationDistanceToJammer = -1.f;
+	float CountermeasureActivationBaseRadius = 0.f;
+	float CountermeasureActivationHeightDifference = 0.f;
+	mutable bool bCountermeasureStatsSubmitted = false;
 
 	// HL 分配算法相关
 	bool bHLAllocationEnabled = false; // 是否启用 HL 分配算法效果
@@ -143,6 +175,8 @@ private:
 	static constexpr int32 MaxSplitGeneration = 1; // 允许分裂的最大层级
 	bool bUseFixedSplitTarget = false;
 	FVector FixedSplitTargetLocation = FVector::ZeroVector;
+	int32 SplitGroupId = INDEX_NONE;
+	bool bIsSplitChild = false;
 	
 	// 轨迹优化算法相关
 	bool bTrajectoryOptimizationEnabled = false; // 是否启用轨迹优化算法（绕过干扰区域）
@@ -157,12 +191,34 @@ private:
 	void ActivateCountermeasure();
 	void ClearJammerCountermeasure(); // 清除干扰区域的反制状态
 	void LogCountermeasureStats() const;
+	void SubmitCountermeasureStats() const;
 	void TrySplitForClusterTargets(AActor* HitActor);
+	void AddCollisionIgnoreActor(AActor* ActorToIgnore);
 	
 	// 轨迹优化：检测并绕过干扰区域
 	bool CheckPathForJammers(const FVector& Start, const FVector& End, ARadarJammerActor*& OutBlockingJammer) const;
 	FVector CalculateAvoidanceWaypoint(const FVector& Start, const FVector& Target, ARadarJammerActor* Jammer) const;
 	void UpdateTrajectoryOptimization();
+	bool GetNearestJammerInfo(ARadarJammerActor*& OutJammer, float& OutDistance, float& OutBaseRadius, float& OutHeightDifference) const;
+
+	// 拦截导弹与躲避对抗
+	void UpdateInterceptorBehavior(float DeltaSeconds);
+	void UpdateInterceptorAwareness(float DeltaSeconds);
+	void StartEvasiveManeuver(const FVector& ThreatDirection);
+	void StopEvasiveManeuver();
+
+	bool bEvasiveSubsystemEnabled = false;
+	bool bPerformingEvasiveManeuver = false;
+	float EvasiveTimeRemaining = 0.f;
+	float EvasionCooldown = 0.f;
+	FVector CurrentEvasiveDirection = FVector::ZeroVector;
+	float EvasiveDirectionFlipTimer = 0.f;
+	float EvasiveDirectionFlipInterval = 0.35f;
+	float EvasiveSpeedBoostTime = 0.f;
+	float EvasiveSpeedBoostMultiplier = 1.45f;
+
+	bool bIsInterceptor = false;
+	TWeakObjectPtr<AMockMissileActor> InterceptorTargetMissile;
 };
 
 

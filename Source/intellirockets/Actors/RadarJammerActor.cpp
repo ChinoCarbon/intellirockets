@@ -91,6 +91,16 @@ void ARadarJammerActor::UpdateRadiusByMissileDistance(float MissileDistance)
 	}
 }
 
+float ARadarJammerActor::GetActivationDistance() const
+{
+	return BaseRadius * CountermeasureActivationDistanceMultiplier;
+}
+
+float ARadarJammerActor::GetDetectionRadius() const
+{
+	return BaseRadius + GetActivationDistance();
+}
+
 void ARadarJammerActor::SetJammerRadius(float InRadius)
 {
 	BaseRadius = FMath::Max(100.f, InRadius);

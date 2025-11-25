@@ -30,6 +30,12 @@ public:
 	/** 获取基础干扰半径 */
 	float GetBaseRadius() const { return BaseRadius; }
 
+	/** 返回激活距离（BaseRadius * Multiplier） */
+	float GetActivationDistance() const;
+
+	/** 返回检测阈值（BaseRadius + 激活距离） */
+	float GetDetectionRadius() const;
+
 	/** 检查点是否在干扰区域内 */
 	bool IsPointInJammerRange(const FVector& Point) const;
 

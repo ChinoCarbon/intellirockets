@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Containers/Set.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Systems/ScenarioTestMetrics.h"
 #include "UI/SScenarioScreen.h"
@@ -19,6 +20,7 @@ UCLASS()
 class UScenarioMenuSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
+	friend class AMockMissileActor;
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -62,7 +64,11 @@ private:
 	AActor* SelectNextBlueTarget();
 	void HandleMissileImpact(AMockMissileActor* Missile, AActor* HitActor);
 	void HandleMissileExpired(AMockMissileActor* Missile);
+	void HandleInterceptorImpact(AMockMissileActor* Interceptor, AActor* HitActor);
+	void HandleInterceptorExpired(AMockMissileActor* Interceptor);
 	void CleanupMissiles();
+	void SpawnInterceptorForMissile(AMockMissileActor* TargetMissile);
+	void RemoveInterceptor(AMockMissileActor* Interceptor);
 	class UStaticMesh* ResolveMissileMesh() const;
 	class UMaterialInterface* ResolveMissileMaterial() const;
 	FVector GetPlayerStartLocation(FRotator& OutRotation) const;
@@ -89,22 +95,35 @@ private:
 	void RecordMissileLaunch(AMockMissileActor* Missile, AActor* Target, const FVector& LaunchLocation, bool bFromAutoFire);
 	void UpdateMissileRecordOnImpact(AMockMissileActor* Missile, AActor* HitActor, int32 DestroyedCount, const FString& HitActorName = FString());
 	void UpdateMissileRecordOnExpired(AMockMissileActor* Missile);
+	void UpdateMissileSplitMeta(AMockMissileActor* Missile, bool bIsSplitChild, int32 SplitGroupId);
+	void UpdateMissileCountermeasureStats(AMockMissileActor* Missile, const FMissileCountermeasureStats& Stats);
 	void ResetMissileTestSession();
 	void CompleteMissileTest();
 	void ClearAutoFire();
 	void BuildIndicatorEvaluations(TArray<FIndicatorEvaluationResult>& OutResults) const;
+	AActor* GetBlueRocketSpawnAnchor() const;
+	AActor* GetBlueDefendZoneAnchor() const;
+	AActor* FindActorByNameSubstring(const FString& NameFragment) const;
 
 public:
 	/** 获取所有有效的蓝方单位列表（供导弹搜索目标使用） */
 	void GetActiveBlueUnits(TArray<AActor*>& OutUnits) const;
 	/** 获取所有雷达干扰区域列表（供导弹检测干扰使用） */
 	void GetActiveRadarJammers(TArray<class ARadarJammerActor*>& OutJammers) const;
+	/** 获取所有拦截导弹列表（供导弹检测拦截威胁使用） */
+	void GetActiveInterceptorMissiles(TArray<AMockMissileActor*>& OutInterceptors) const;
 	
 	const FMissileTestSummary& GetMissileTestSummary() const { return LastMissileSummary; }
 	const TArray<FMissileTestRecord>& GetMissileTestRecords() const { return MissileTestRecords; }
 	bool HasMissileTestData() const { return MissileTestRecords.Num() > 0; }
 	const FScenarioTestConfig& GetActiveScenarioConfig() const { return ActiveScenarioConfig; }
 	void GetIndicatorEvaluations(TArray<FIndicatorEvaluationResult>& OutResults) const { BuildIndicatorEvaluations(OutResults); }
+	void RegisterHLSplitAttempt();
+	int32 RegisterHLSplitSuccess(int32 AssignedTargetCount);
+	void RegisterHLSplitChildSpawn();
+	void RegisterHLSplitChildHit();
+	void RegisterHLSplitGroupHit(int32 SplitGroupId, const FString& TargetName);
+	void ResetHLSplitStats();
 
 	// 感知算法统计上报（供蓝图/外部系统调用）
 	void Perception_ReportDetection(bool bCorrect);
@@ -163,6 +182,7 @@ private:
 	TArray<TWeakObjectPtr<class UMaterialInterface>> BlueUnitMaterials;
 	TArray<int32> ActiveCountermeasureIndices;
 	TArray<TWeakObjectPtr<AMockMissileActor>> ActiveMissiles;
+	TArray<TWeakObjectPtr<AMockMissileActor>> ActiveInterceptorMissiles;
 	mutable TWeakObjectPtr<class UStaticMesh> CachedMissileMesh;
 	mutable TWeakObjectPtr<class UMaterialInterface> CachedMissileMaterial;
 	int32 NextTargetCursor = 0;
@@ -201,6 +221,16 @@ private:
 	double TestSessionStartTime = 0.0;
 	FScenarioTestConfig ActiveScenarioConfig;
 	bool bHasActiveScenarioConfig = false;
+	bool bEvasionSubsystemSelected = false;
+	mutable TWeakObjectPtr<AActor> CachedBlueRocketSpawnActor;
+	mutable TWeakObjectPtr<AActor> CachedBlueDefendZoneActor;
+	int32 HLSplitAttemptCount = 0;
+	int32 HLSplitSuccessCount = 0;
+	int32 HLSplitChildShotCount = 0;
+	int32 HLSplitChildHitCount = 0;
+	int32 HLSplitGroupCount = 0;
+	int32 HLSplitGroupIdSeed = 0;
+	TMap<int32, TSet<FString>> HLSplitGroupHits;
 };
 
 

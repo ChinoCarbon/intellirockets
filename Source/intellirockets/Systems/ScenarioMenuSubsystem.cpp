@@ -285,6 +285,16 @@ void UScenarioMenuSubsystem::BeginScenarioTest()
 	ResetMissileTestSession();
 	ActiveScenarioConfig = Config;
 	bHasActiveScenarioConfig = true;
+	bEvasionSubsystemSelected = false;
+	for (const FString& PrototypeName : ActiveScenarioConfig.SelectedPrototypeNames)
+	{
+		if (PrototypeName.Contains(TEXT("躲避对抗")))
+		{
+			bEvasionSubsystemSelected = true;
+			break;
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("BeginScenarioTest: 躲避对抗分系统启用=%d"), bEvasionSubsystemSelected ? 1 : 0);
 	ClearSpawnedBlueUnits();
 
 	if (OnScenarioTestRequested.IsBound())
@@ -558,6 +568,64 @@ void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluati
 			// 效能性-任务完成率：基于导弹命中率
 			EvaluateThreshold(Summary.HitRate, 95.f, true, TEXT("%"), TEXT("基于导弹命中率。"));
 		}
+		else if (IndicatorId == TEXT("3.4.3.8"))
+		{
+			const float Value = Summary.HLSplitAttemptCount > 0 ? (static_cast<float>(Summary.HLSplitSuccessCount) * 100.f / Summary.HLSplitAttemptCount) : 0.f;
+			EvaluateThreshold(Value, 80.f, true, TEXT("%"), TEXT("分裂触发成功率≥80%"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.9"))
+		{
+			const float Value = Summary.HLSplitChildShotCount > 0 ? (static_cast<float>(Summary.HLSplitChildHitCount) * 100.f / Summary.HLSplitChildShotCount) : 0.f;
+			EvaluateThreshold(Value, 60.f, true, TEXT("%"), TEXT("分裂子弹命中率≥60%"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.10"))
+		{
+			const float Value = Summary.HLSplitGroupCount > 0 ? (Summary.HLSplitGroupUniqueTargetsTotal / Summary.HLSplitGroupCount) : 0.f;
+			EvaluateThreshold(Value, 2.f, true, TEXT(""), TEXT("平均分裂命中目标数≥2.0"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.11"))
+		{
+			EvaluateThreshold(Summary.CountermeasureAverageDetectionMarginPercent, 20.f, true, TEXT("%"), TEXT("干扰触发距离裕度≥20%"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.12"))
+		{
+			EvaluateThreshold(Summary.CountermeasureSuppressionSuccessRate, 70.f, true, TEXT("%"), TEXT("干扰抑制成功率≥70%"));
+		}
+		else if (IndicatorId == TEXT("3.4.3.13"))
+		{
+			EvaluateThreshold(Summary.CountermeasureAverageRadiusReductionRate, 60.f, true, TEXT("%"), TEXT("反制半径缩减率≥60%"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.7"))
+		{
+			const float Value = Summary.HLSplitAttemptCount > 0 ? (static_cast<float>(Summary.HLSplitSuccessCount) * 100.f / Summary.HLSplitAttemptCount) : 0.f;
+			EvaluateThreshold(Value, 75.f, true, TEXT("%"), TEXT("分系统级多弹协同成功率≥75%"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.8"))
+		{
+			const float Value = Summary.HLSplitGroupCount > 0 ? (Summary.HLSplitGroupUniqueTargetsTotal / Summary.HLSplitGroupCount) : 0.f;
+			EvaluateThreshold(Value, 2.f, true, TEXT(""), TEXT("系统级平均协同命中目标数≥2.0"));
+		}
+		else if (IndicatorId == TEXT("3.5.3.9"))
+		{
+			const float Value = Summary.HLSplitChildShotCount > 0 ? (static_cast<float>(Summary.HLSplitChildHitCount) * 100.f / Summary.HLSplitChildShotCount) : 0.f;
+			EvaluateThreshold(Value, 60.f, true, TEXT("%"), TEXT("分系统级子弹贡献率≥60%"));
+		}
+		else if (IndicatorId == TEXT("3.5.4.1"))
+		{
+			EvaluateThreshold(Summary.CountermeasureOnTimeRate, 85.f, true, TEXT("%"), TEXT("0.5秒内按高度/距离条件启动干扰的比例≥85%"));
+		}
+		else if (IndicatorId == TEXT("3.5.4.2"))
+		{
+			EvaluateThreshold(Summary.CountermeasureAverageActivationDelay, 0.5f, false, TEXT(" s"), TEXT("平均干扰响应延迟≤0.5秒"));
+		}
+		else if (IndicatorId == TEXT("3.5.4.3"))
+		{
+			EvaluateThreshold(Summary.CountermeasureCoverageSuccessRate, 80.f, true, TEXT("%"), TEXT("干扰覆盖成功率≥80%"));
+		}
+		else if (IndicatorId == TEXT("3.5.4.4"))
+		{
+			EvaluateThreshold(Summary.CountermeasureAverageDuration, 2.f, true, TEXT(" s"), TEXT("平均干扰持续时间≥2秒"));
+		}
 		else if (IndicatorId == TEXT("3.4.3.3"))
 		{
 			const float Value = Summary.AverageFlightTime;
@@ -729,6 +797,56 @@ void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluati
 
 		OutResults.Add(Result);
 	}
+}
+
+void UScenarioMenuSubsystem::RegisterHLSplitAttempt()
+{
+	++HLSplitAttemptCount;
+}
+
+int32 UScenarioMenuSubsystem::RegisterHLSplitSuccess(int32 AssignedTargetCount)
+{
+	++HLSplitSuccessCount;
+	++HLSplitGroupCount;
+	const int32 NewGroupId = ++HLSplitGroupIdSeed;
+	HLSplitGroupHits.FindOrAdd(NewGroupId);
+	(void)AssignedTargetCount;
+	return NewGroupId;
+}
+
+void UScenarioMenuSubsystem::RegisterHLSplitChildSpawn()
+{
+	++HLSplitChildShotCount;
+}
+
+void UScenarioMenuSubsystem::RegisterHLSplitChildHit()
+{
+	++HLSplitChildHitCount;
+}
+
+void UScenarioMenuSubsystem::RegisterHLSplitGroupHit(int32 SplitGroupId, const FString& TargetName)
+{
+	if (SplitGroupId == INDEX_NONE)
+	{
+		return;
+	}
+
+	TSet<FString>& HitSet = HLSplitGroupHits.FindOrAdd(SplitGroupId);
+	if (!TargetName.IsEmpty())
+	{
+		HitSet.Add(TargetName);
+	}
+}
+
+void UScenarioMenuSubsystem::ResetHLSplitStats()
+{
+	HLSplitAttemptCount = 0;
+	HLSplitSuccessCount = 0;
+	HLSplitChildShotCount = 0;
+	HLSplitChildHitCount = 0;
+	HLSplitGroupCount = 0;
+	HLSplitGroupIdSeed = 0;
+	HLSplitGroupHits.Reset();
 }
 
 void UScenarioMenuSubsystem::ApplyEnvironmentSettings(UWorld* World, const FScenarioTestConfig& Config)
@@ -1253,6 +1371,19 @@ void UScenarioMenuSubsystem::ClearSpawnedBlueUnits()
 		}
 	}
 	ActiveMissiles.Reset();
+
+	for (TWeakObjectPtr<AMockMissileActor>& InterceptorPtr : ActiveInterceptorMissiles)
+	{
+		if (AMockMissileActor* Interceptor = InterceptorPtr.Get())
+		{
+			if (!Interceptor->IsPendingKillPending())
+			{
+				Interceptor->Destroy();
+			}
+		}
+	}
+	ActiveInterceptorMissiles.Reset();
+
 	AutoFireRemaining = 0;
 	if (UWorld* World = GetWorld())
 	{
@@ -1883,6 +2014,11 @@ AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* T
 		const bool bElectromagnetic = ActiveScenarioConfig.CountermeasureIndices.Contains(0);
 		Missile->SetInterferenceMode(bElectromagnetic);
 	}
+
+	if (bEvasionSubsystemSelected)
+	{
+		SpawnInterceptorForMissile(Missile);
+	}
 	
 	Missile->OnImpact.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileImpact);
 	Missile->OnExpired.AddUObject(this, &UScenarioMenuSubsystem::HandleMissileExpired);
@@ -1895,6 +2031,84 @@ AMockMissileActor* UScenarioMenuSubsystem::SpawnMissile(UWorld* World, AActor* T
 		*SpawnLocation.ToString());
 	RebuildViewSequence();
 	return Missile;
+}
+
+void UScenarioMenuSubsystem::SpawnInterceptorForMissile(AMockMissileActor* TargetMissile)
+{
+	if (!bEvasionSubsystemSelected || !TargetMissile)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const FVector MissileLocation = TargetMissile->GetActorLocation();
+	FVector SpawnLocation = MissileLocation;
+	FRotator SpawnRotation = (TargetMissile->GetActorForwardVector() * -1.f).Rotation();
+
+	if (AActor* RocketAnchor = GetBlueRocketSpawnAnchor())
+	{
+		SpawnLocation = RocketAnchor->GetActorLocation();
+		FVector DirToMissile = (MissileLocation - SpawnLocation).GetSafeNormal();
+		if (!DirToMissile.IsNearlyZero())
+		{
+			SpawnRotation = DirToMissile.Rotation();
+		}
+		else
+		{
+			SpawnRotation = RocketAnchor->GetActorRotation();
+		}
+	}
+	else
+	{
+		FVector MissileForward = TargetMissile->GetActorForwardVector().GetSafeNormal();
+		if (MissileForward.IsNearlyZero())
+		{
+			MissileForward = FVector::ForwardVector;
+		}
+		FVector MissileRight = FVector::CrossProduct(MissileForward, FVector::UpVector).GetSafeNormal();
+		if (MissileRight.IsNearlyZero())
+		{
+			MissileRight = FVector::RightVector;
+		}
+
+		const float ForwardOffset = 12000.f;
+		const float VerticalOffset = 1500.f;
+		SpawnLocation = MissileLocation + MissileForward * ForwardOffset + FVector(0.f, 0.f, VerticalOffset);
+		SpawnLocation += MissileRight * FMath::RandRange(-2500.f, 2500.f);
+
+		SpawnRotation = (MissileLocation - SpawnLocation).Rotation();
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	AMockMissileActor* Interceptor = World->SpawnActor<AMockMissileActor>(SpawnLocation, SpawnRotation, Params);
+	if (!Interceptor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnInterceptorForMissile: failed to spawn interceptor"));
+		return;
+	}
+
+	Interceptor->SetupAppearance(ResolveMissileMesh(), ResolveMissileMaterial(), FLinearColor(0.1f, 0.4f, 1.f));
+
+	const float InterceptorSpeed = 4500.f;
+	const float InterceptorLifetime = 25.f;
+	Interceptor->InitializeMissile(TargetMissile, InterceptorSpeed, InterceptorLifetime);
+	Interceptor->ConfigureInterceptorRole(TargetMissile, InterceptorSpeed, InterceptorLifetime);
+
+	Interceptor->OnImpact.AddUObject(this, &UScenarioMenuSubsystem::HandleInterceptorImpact);
+	Interceptor->OnExpired.AddUObject(this, &UScenarioMenuSubsystem::HandleInterceptorExpired);
+
+	ActiveInterceptorMissiles.Add(Interceptor);
+
+	UE_LOG(LogTemp, Log, TEXT("SpawnInterceptorForMissile: spawned interceptor %s targeting %s"), 
+		*Interceptor->GetName(), 
+		*TargetMissile->GetName());
 }
 
 AActor* UScenarioMenuSubsystem::SelectNextBlueTarget()
@@ -1952,6 +2166,21 @@ void UScenarioMenuSubsystem::GetActiveRadarJammers(TArray<ARadarJammerActor*>& O
 	}
 }
 
+void UScenarioMenuSubsystem::GetActiveInterceptorMissiles(TArray<AMockMissileActor*>& OutInterceptors) const
+{
+	OutInterceptors.Reset();
+	for (const TWeakObjectPtr<AMockMissileActor>& Ptr : ActiveInterceptorMissiles)
+	{
+		if (AMockMissileActor* Interceptor = Ptr.Get())
+		{
+			if (!Interceptor->IsPendingKillPending())
+			{
+				OutInterceptors.Add(Interceptor);
+			}
+		}
+	}
+}
+
 void UScenarioMenuSubsystem::SpawnRadarJammers(UWorld* World)
 {
 	if (!World)
@@ -1980,7 +2209,29 @@ void UScenarioMenuSubsystem::SpawnRadarJammers(UWorld* World)
 		return;
 	}
 
-	// 随机选择一个蓝方目标，在其附近生成雷达干扰区域
+	if (AActor* DefendZoneAnchor = GetBlueDefendZoneAnchor())
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		const FVector SpawnLocation = DefendZoneAnchor->GetActorLocation();
+		const FRotator SpawnRotation = DefendZoneAnchor->GetActorRotation();
+		ARadarJammerActor* Jammer = World->SpawnActor<ARadarJammerActor>(SpawnLocation, SpawnRotation, Params);
+		if (Jammer)
+		{
+			float JammerRadius = FMath::RandRange(5000.f, 8000.f);
+			Jammer->SetJammerRadius(JammerRadius);
+			ActiveRadarJammers.Add(Jammer);
+			UE_LOG(LogTemp, Log, TEXT("SpawnRadarJammers: Spawned jammer at defend zone anchor %s (radius %.1f)"),
+				*DefendZoneAnchor->GetName(), JammerRadius);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("SpawnRadarJammers: Failed to spawn jammer at defend zone anchor"));
+		}
+		return;
+	}
+
+	// 随机选择一个蓝方目标，在其附近生成雷达干扰区域（作为兜底方案）
 	const int32 NumJammers = FMath::Min(1, ValidBlueUnits.Num());
 	TArray<int32> SelectedIndices;
 	const FString CurrentMapName = World->GetMapName();
@@ -2195,12 +2446,79 @@ void UScenarioMenuSubsystem::HandleMissileExpired(AMockMissileActor* Missile)
 	RebuildViewSequence();
 }
 
+void UScenarioMenuSubsystem::HandleInterceptorImpact(AMockMissileActor* Interceptor, AActor* HitActor)
+{
+	if (AMockMissileActor* FriendlyMissile = Cast<AMockMissileActor>(HitActor))
+	{
+		FriendlyMissile->HandleInterceptedByEnemy(Interceptor);
+	}
+
+	RemoveInterceptor(Interceptor);
+}
+
+void UScenarioMenuSubsystem::HandleInterceptorExpired(AMockMissileActor* Interceptor)
+{
+	RemoveInterceptor(Interceptor);
+}
+
+void UScenarioMenuSubsystem::RemoveInterceptor(AMockMissileActor* Interceptor)
+{
+	ActiveInterceptorMissiles.RemoveAll([Interceptor](const TWeakObjectPtr<AMockMissileActor>& Ptr)
+	{
+		return !Ptr.IsValid() || Ptr.Get() == Interceptor;
+	});
+}
+
 void UScenarioMenuSubsystem::CleanupMissiles()
 {
 	ActiveMissiles.RemoveAll([](const TWeakObjectPtr<AMockMissileActor>& Ptr)
 	{
 		return !Ptr.IsValid();
 	});
+
+	ActiveInterceptorMissiles.RemoveAll([](const TWeakObjectPtr<AMockMissileActor>& Ptr)
+	{
+		return !Ptr.IsValid();
+	});
+}
+
+AActor* UScenarioMenuSubsystem::GetBlueRocketSpawnAnchor() const
+{
+	if (!CachedBlueRocketSpawnActor.IsValid())
+	{
+		CachedBlueRocketSpawnActor = FindActorByNameSubstring(TEXT("BP_BlueRocketSpawn"));
+	}
+	return CachedBlueRocketSpawnActor.Get();
+}
+
+AActor* UScenarioMenuSubsystem::GetBlueDefendZoneAnchor() const
+{
+	if (!CachedBlueDefendZoneActor.IsValid())
+	{
+		CachedBlueDefendZoneActor = FindActorByNameSubstring(TEXT("BP_BlueDefendZone"));
+	}
+	return CachedBlueDefendZoneActor.Get();
+}
+
+AActor* UScenarioMenuSubsystem::FindActorByNameSubstring(const FString& NameFragment) const
+{
+	if (NameFragment.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (!It->IsPendingKillPending() && It->GetName().Contains(NameFragment))
+			{
+				return *It;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 UStaticMesh* UScenarioMenuSubsystem::ResolveMissileMesh() const
@@ -2922,6 +3240,9 @@ void UScenarioMenuSubsystem::RecordMissileLaunch(AMockMissileActor* Missile, AAc
 	Record.LaunchLocation = LaunchLocation;
 	Record.TargetLocation = Target ? Target->GetActorLocation() : FVector::ZeroVector;
 	Record.InitialDistance = Target ? FVector::Dist(LaunchLocation, Record.TargetLocation) : 0.f;
+	Record.bIsSplitChild = Missile->IsSplitChild();
+	Record.SplitGroupId = Missile->GetSplitGroupId();
+	Record.CountermeasureStats.bCountermeasureEnabled = Missile->IsCountermeasureEnabled();
 
 	const int32 Index = MissileTestRecords.Add(Record);
 	MissileRecordLookup.Add(Missile, Index);
@@ -2952,6 +3273,23 @@ void UScenarioMenuSubsystem::UpdateMissileRecordOnImpact(AMockMissileActor* Miss
 			
 			const bool bTargetPointerValid = Record.TargetActor.IsValid();
 			Record.bTargetDestroyed = (Record.bDirectHit || (DestroyedCount > 0 && !bTargetPointerValid));
+
+			// 更新反制统计数据（从MockMissileActor获取数据）
+			if (Record.CountermeasureStats.bCountermeasureEnabled)
+			{
+				// 从MockMissileActor获取反制统计数据
+				Missile->GetCountermeasureStats(Record.CountermeasureStats);
+
+				// 记录是否在干扰区域内失去目标
+				Record.CountermeasureStats.bLostTargetInJammerRange = !Record.TargetActor.IsValid() && Record.CountermeasureStats.bEnteredJammerRange;
+				
+				// 计算干扰持续时间（从激活到命中）
+				if (Record.CountermeasureStats.bCountermeasureActivated && Record.CountermeasureStats.CountermeasureActivationTime >= 0.f)
+				{
+					const float Duration = static_cast<float>(CurrentTime - Record.LaunchTimeSeconds) - Record.CountermeasureStats.CountermeasureActivationTime;
+					Record.CountermeasureStats.CountermeasureDuration = FMath::Max(0.f, Duration);
+				}
+			}
 		}
 		MissileRecordLookup.Remove(Missile);
 	}
@@ -2977,8 +3315,59 @@ void UScenarioMenuSubsystem::UpdateMissileRecordOnExpired(AMockMissileActor* Mis
 			Record.DestroyedCount = 0;
 			Record.bDirectHit = false;
 			Record.bTargetDestroyed = Record.TargetActor.IsValid() ? !Record.TargetActor.IsValid() : false;
+
+			// 更新反制统计数据（从MockMissileActor获取数据）
+			if (Record.CountermeasureStats.bCountermeasureEnabled)
+			{
+				// 从MockMissileActor获取反制统计数据
+				Missile->GetCountermeasureStats(Record.CountermeasureStats);
+
+				// 记录是否在干扰区域内失去目标
+				Record.CountermeasureStats.bLostTargetInJammerRange = !Record.TargetActor.IsValid() && Record.CountermeasureStats.bEnteredJammerRange;
+				
+				// 计算干扰持续时间（从激活到过期）
+				if (Record.CountermeasureStats.bCountermeasureActivated && Record.CountermeasureStats.CountermeasureActivationTime >= 0.f)
+				{
+					const float Duration = static_cast<float>(CurrentTime - Record.LaunchTimeSeconds) - Record.CountermeasureStats.CountermeasureActivationTime;
+					Record.CountermeasureStats.CountermeasureDuration = FMath::Max(0.f, Duration);
+				}
+			}
 		}
 		MissileRecordLookup.Remove(Missile);
+	}
+}
+
+void UScenarioMenuSubsystem::UpdateMissileSplitMeta(AMockMissileActor* Missile, bool bIsSplitChild, int32 SplitGroupId)
+{
+	if (!Missile)
+	{
+		return;
+	}
+
+	if (int32* IndexPtr = MissileRecordLookup.Find(Missile))
+	{
+		if (MissileTestRecords.IsValidIndex(*IndexPtr))
+		{
+			FMissileTestRecord& Record = MissileTestRecords[*IndexPtr];
+			Record.bIsSplitChild = bIsSplitChild;
+			Record.SplitGroupId = SplitGroupId;
+		}
+	}
+}
+
+void UScenarioMenuSubsystem::UpdateMissileCountermeasureStats(AMockMissileActor* Missile, const FMissileCountermeasureStats& Stats)
+{
+	if (!Missile)
+	{
+		return;
+	}
+
+	if (int32* IndexPtr = MissileRecordLookup.Find(Missile))
+	{
+		if (MissileTestRecords.IsValidIndex(*IndexPtr))
+		{
+			MissileTestRecords[*IndexPtr].CountermeasureStats = Stats;
+		}
 	}
 }
 
@@ -2987,6 +3376,7 @@ void UScenarioMenuSubsystem::ResetMissileTestSession()
 	MissileTestRecords.Reset();
 	MissileRecordLookup.Reset();
 	LastMissileSummary = FMissileTestSummary();
+	ResetHLSplitStats();
 	TestSessionStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : FPlatformTime::Seconds();
 }
 
@@ -3040,6 +3430,23 @@ void UScenarioMenuSubsystem::CompleteMissileTest()
 
 	int32 MissCount = 0;
 
+	// 干扰对抗新指标统计
+	int32 CountermeasureEnabledMissiles = 0; // 启用干扰对抗算法的导弹数
+	int32 CountermeasureSuppressionSuccessCount = 0; // 干扰抑制成功数（在干扰区域内失去目标或未命中）
+	int32 CountermeasureRadiusReductionSamples = 0; // 反制半径缩减样本数
+	float CountermeasureRadiusReductionAccumulator = 0.f; // 反制半径缩减累计值
+	int32 CountermeasureEnteredJammerRangeCount = 0; // 进入干扰区域的导弹数
+	int32 CountermeasureCoverageSuccessCount = 0; // 干扰覆盖成功数（进入干扰区域且失去目标或未命中）
+	int32 CountermeasureDurationSamples = 0; // 干扰持续时间样本数
+	float CountermeasureDurationAccumulator = 0.f; // 干扰持续时间累计值
+	float DetectionMarginAccumulator = 0.f;
+	int32 DetectionSamples = 0;
+	float ActivationDelayAccumulator = 0.f;
+	int32 ActivationSamples = 0;
+	int32 ActivationOnTimeCount = 0;
+	float ActivationDistanceAccumulator = 0.f;
+	float ActivationHeightAccumulator = 0.f;
+
 	for (const FMissileTestRecord& Record : MissileTestRecords)
 	{
 		if (Record.bAutoFire)
@@ -3083,6 +3490,66 @@ void UScenarioMenuSubsystem::CompleteMissileTest()
 		{
 			++MissCount;
 		}
+
+		const FMissileCountermeasureStats& CounterStats = Record.CountermeasureStats;
+		if (CounterStats.bCountermeasureEnabled)
+		{
+			if (CounterStats.bDetectionLogged && CounterStats.DetectionBaseRadius > KINDA_SMALL_NUMBER)
+			{
+				++DetectionSamples;
+				const float MarginPercent = (CounterStats.DetectionDistanceToJammer - CounterStats.DetectionBaseRadius) / CounterStats.DetectionBaseRadius * 100.f;
+				DetectionMarginAccumulator += MarginPercent;
+			}
+			if (CounterStats.bCountermeasureActivated && CounterStats.CountermeasureActivationTime >= 0.f && CounterStats.DetectionTime >= 0.f)
+			{
+				++ActivationSamples;
+				const float DelaySeconds = FMath::Max(0.f, CounterStats.CountermeasureActivationTime - CounterStats.DetectionTime);
+				ActivationDelayAccumulator += DelaySeconds;
+				ActivationDistanceAccumulator += CounterStats.CountermeasureActivationDistanceToJammer;
+				ActivationHeightAccumulator += CounterStats.CountermeasureActivationHeightDifference;
+
+				const bool bDelayOk = DelaySeconds <= 0.5f;
+				const bool bDistanceOk = CounterStats.CountermeasureActivationBaseRadius > KINDA_SMALL_NUMBER
+					? (CounterStats.CountermeasureActivationDistanceToJammer >= CounterStats.CountermeasureActivationBaseRadius * 0.95f)
+					: true;
+				const bool bHeightOk = FMath::Abs(CounterStats.CountermeasureActivationHeightDifference) <= 1500.f;
+
+				if (bDelayOk && bDistanceOk && bHeightOk)
+				{
+					++ActivationOnTimeCount;
+				}
+
+				// 记录反制半径缩减率
+				if (CounterStats.CountermeasureActivationRadiusReductionPercent > 0.f)
+				{
+					++CountermeasureRadiusReductionSamples;
+					CountermeasureRadiusReductionAccumulator += CounterStats.CountermeasureActivationRadiusReductionPercent;
+				}
+
+				// 记录干扰持续时间
+				if (CounterStats.CountermeasureDuration > 0.f)
+				{
+					++CountermeasureDurationSamples;
+					CountermeasureDurationAccumulator += CounterStats.CountermeasureDuration;
+				}
+			}
+
+			// 统计干扰抑制成功率：启用干扰对抗算法后，导弹在干扰区域内失去目标或未命中
+			if (CounterStats.bCountermeasureEnabled)
+			{
+				++CountermeasureEnabledMissiles;
+				// 如果进入过干扰区域，且失去目标或未命中，则算作抑制成功
+				if (CounterStats.bEnteredJammerRange)
+				{
+					++CountermeasureEnteredJammerRangeCount;
+					if (CounterStats.bLostTargetInJammerRange || Record.DestroyedCount == 0)
+					{
+						++CountermeasureSuppressionSuccessCount;
+						++CountermeasureCoverageSuccessCount;
+					}
+				}
+			}
+		}
 	}
 
 	LastMissileSummary.HitRate = LastMissileSummary.TotalShots > 0 ? (static_cast<float>(LastMissileSummary.Hits) * 100.f / LastMissileSummary.TotalShots) : 0.f;
@@ -3092,6 +3559,28 @@ void UScenarioMenuSubsystem::CompleteMissileTest()
 	LastMissileSummary.AverageDestroyedPerHit = LastMissileSummary.Hits > 0 ? static_cast<float>(TotalDestroyed / LastMissileSummary.Hits) : 0.f;
 	LastMissileSummary.AverageAutoLaunchInterval = AutoIntervals > 0 ? static_cast<float>(AutoIntervalAccumulator / AutoIntervals) : 0.f;
 	LastMissileSummary.Misses = MissCount;
+	LastMissileSummary.HLSplitAttemptCount = HLSplitAttemptCount;
+	LastMissileSummary.HLSplitSuccessCount = HLSplitSuccessCount;
+	LastMissileSummary.HLSplitChildShotCount = HLSplitChildShotCount;
+	LastMissileSummary.HLSplitChildHitCount = HLSplitChildHitCount;
+	LastMissileSummary.HLSplitGroupCount = HLSplitGroupCount;
+	float UniqueTotal = 0.f;
+	for (const auto& Pair : HLSplitGroupHits)
+	{
+		UniqueTotal += Pair.Value.Num();
+	}
+	LastMissileSummary.HLSplitGroupUniqueTargetsTotal = UniqueTotal;
+	LastMissileSummary.CountermeasureDetectionSamples = DetectionSamples;
+	LastMissileSummary.CountermeasureAverageDetectionMarginPercent = DetectionSamples > 0 ? (DetectionMarginAccumulator / DetectionSamples) : 0.f;
+	LastMissileSummary.CountermeasureActivationSamples = ActivationSamples;
+	LastMissileSummary.CountermeasureAverageActivationDelay = ActivationSamples > 0 ? (ActivationDelayAccumulator / ActivationSamples) : 0.f;
+	LastMissileSummary.CountermeasureOnTimeRate = ActivationSamples > 0 ? (static_cast<float>(ActivationOnTimeCount) * 100.f / ActivationSamples) : 0.f;
+	LastMissileSummary.CountermeasureAverageActivationDistance = ActivationSamples > 0 ? (ActivationDistanceAccumulator / ActivationSamples) : 0.f;
+	LastMissileSummary.CountermeasureAverageActivationHeightDiff = ActivationSamples > 0 ? (ActivationHeightAccumulator / ActivationSamples) : 0.f;
+	LastMissileSummary.CountermeasureSuppressionSuccessRate = CountermeasureEnabledMissiles > 0 ? (static_cast<float>(CountermeasureSuppressionSuccessCount) * 100.f / CountermeasureEnabledMissiles) : 0.f;
+	LastMissileSummary.CountermeasureAverageRadiusReductionRate = CountermeasureRadiusReductionSamples > 0 ? (CountermeasureRadiusReductionAccumulator / CountermeasureRadiusReductionSamples) : 0.f;
+	LastMissileSummary.CountermeasureCoverageSuccessRate = CountermeasureEnteredJammerRangeCount > 0 ? (static_cast<float>(CountermeasureCoverageSuccessCount) * 100.f / CountermeasureEnteredJammerRangeCount) : 0.f;
+	LastMissileSummary.CountermeasureAverageDuration = CountermeasureDurationSamples > 0 ? (CountermeasureDurationAccumulator / CountermeasureDurationSamples) : 0.f;
 
 	UE_LOG(LogTemp, Log, TEXT("Missile test completed: Shots=%d Hits=%d HitRate=%.1f%%"),
 		LastMissileSummary.TotalShots, LastMissileSummary.Hits, LastMissileSummary.HitRate);
