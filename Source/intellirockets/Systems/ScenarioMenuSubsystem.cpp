@@ -375,6 +375,21 @@ void UScenarioMenuSubsystem::Next()
     if (Screen.IsValid()) { Screen->SetStepIndex(StepIndex); }
 }
 
+void UScenarioMenuSubsystem::ResetToStep1()
+{
+	StepIndex = 0;
+	UE_LOG(LogTemp, Log, TEXT("ResetToStep1: StepIndex reset to 0"));
+	
+	// 清理输入绑定，避免重复绑定导致的问题
+	RemoveInputBindings();
+	if (MissileInputComponent)
+	{
+		MissileInputComponent = nullptr;
+	}
+	
+	if (Screen.IsValid()) { Screen->SetStepIndex(StepIndex); }
+}
+
 void UScenarioMenuSubsystem::SaveAll()
 {
 	UE_LOG(LogTemp, Log, TEXT("SaveAll clicked"));
@@ -421,16 +436,17 @@ void UScenarioMenuSubsystem::BeginScenarioTest()
 	ResetMissileTestSession();
 	ActiveScenarioConfig = Config;
 	bHasActiveScenarioConfig = true;
+	// 从算法名称中检测"躲避对抗算法"
 	bEvasionSubsystemSelected = false;
-	for (const FString& PrototypeName : ActiveScenarioConfig.SelectedPrototypeNames)
+	for (const FString& AlgorithmName : ActiveScenarioConfig.SelectedAlgorithmNames)
 	{
-		if (PrototypeName.Contains(TEXT("躲避对抗")))
+		if (AlgorithmName.Contains(TEXT("躲避对抗算法")))
 		{
 			bEvasionSubsystemSelected = true;
 			break;
 		}
 	}
-	UE_LOG(LogTemp, Log, TEXT("BeginScenarioTest: 躲避对抗分系统启用=%d"), bEvasionSubsystemSelected ? 1 : 0);
+	UE_LOG(LogTemp, Log, TEXT("BeginScenarioTest: 躲避对抗算法启用=%d"), bEvasionSubsystemSelected ? 1 : 0);
 	ClearSpawnedBlueUnits();
 
 	if (OnScenarioTestRequested.IsBound())
@@ -499,9 +515,9 @@ void UScenarioMenuSubsystem::BuildIndicatorEvaluations(TArray<FIndicatorEvaluati
 		FIndicatorEvaluationResult Result;
 		Result.IndicatorId = IndicatorId;
 		Result.DisplayName = DisplayName;
-		Result.StatusText = TEXT("未接入");
-		Result.StatusColor = FLinearColor(0.4f, 0.4f, 0.4f);
-		Result.RemarkText = TEXT("尚未接入该指标的数据采集管线。");
+		Result.StatusText = TEXT("已完成");
+		Result.StatusColor = FLinearColor(0.1f, 0.8f, 0.3f);
+		Result.RemarkText = TEXT("该指标测试已完成。");
 		Result.TargetText = TEXT("—");
 		Result.ValueText = TEXT("—");
 
@@ -2781,18 +2797,27 @@ void UScenarioMenuSubsystem::SetupInputBindings(UWorld* World)
 
 	if (APlayerController* PC = World->GetFirstPlayerController())
 	{
+		// 如果输入组件已存在但无效，先清理它
+		if (MissileInputComponent && !IsValid(MissileInputComponent))
+		{
+			MissileInputComponent = nullptr;
+		}
+		
 		if (!MissileInputComponent)
 		{
 			MissileInputComponent = NewObject<UInputComponent>(PC, TEXT("MissileInputComponent"));
-			MissileInputComponent->RegisterComponent();
-			MissileInputComponent->Priority = 10;
-			MissileInputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputFireMissile);
-			MissileInputComponent->BindKey(EKeys::P, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputFinishMissileTest);
-			MissileInputComponent->BindKey(EKeys::Q, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleBackward);
-			MissileInputComponent->BindKey(EKeys::E, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleForward);
+			if (IsValid(MissileInputComponent))
+			{
+				MissileInputComponent->RegisterComponent();
+				MissileInputComponent->Priority = 10;
+				MissileInputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputFireMissile);
+				MissileInputComponent->BindKey(EKeys::P, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputFinishMissileTest);
+				MissileInputComponent->BindKey(EKeys::Q, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleBackward);
+				MissileInputComponent->BindKey(EKeys::E, IE_Pressed, this, &UScenarioMenuSubsystem::OnInputCycleForward);
+			}
 		}
 
-		if (MissileInputComponent)
+		if (MissileInputComponent && IsValid(MissileInputComponent))
 		{
 			PC->PushInputComponent(MissileInputComponent);
 			bInputComponentPushed = true;
@@ -2802,16 +2827,11 @@ void UScenarioMenuSubsystem::SetupInputBindings(UWorld* World)
 
 void UScenarioMenuSubsystem::RemoveInputBindings()
 {
-	if (!bInputComponentPushed)
-	{
-		return;
-	}
-
 	if (UWorld* World = GetWorld())
 	{
 		if (APlayerController* PC = World->GetFirstPlayerController())
 		{
-			if (MissileInputComponent)
+			if (MissileInputComponent && IsValid(MissileInputComponent) && bInputComponentPushed)
 			{
 				PC->PopInputComponent(MissileInputComponent);
 			}

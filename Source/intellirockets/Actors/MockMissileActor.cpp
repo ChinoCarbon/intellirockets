@@ -273,10 +273,11 @@ void AMockMissileActor::SetAlgorithmConfig(const TArray<FString>& AlgorithmNames
 		UE_LOG(LogTemp, Log, TEXT("[Missile %s] 启用轨迹优化算法（绕过干扰区域）"), *GetName());
 	}
 
+	// 从算法名称中检测"躲避对抗算法"
 	bool bDetectedEvasionSubsystem = false;
-	for (const FString& PrototypeName : PrototypeNames)
+	for (const FString& AlgorithmName : AlgorithmNames)
 	{
-		if (PrototypeName.Contains(TEXT("躲避对抗")))
+		if (AlgorithmName.Contains(TEXT("躲避对抗算法")))
 		{
 			bDetectedEvasionSubsystem = true;
 			break;

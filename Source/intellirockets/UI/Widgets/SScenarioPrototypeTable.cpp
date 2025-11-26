@@ -66,17 +66,26 @@ void SScenarioPrototypeTable::Construct(const FArguments& InArgs)
 {
 	OnRowEdit = InArgs._OnRowEdit;
 	OnRowDelete = InArgs._OnRowDelete;
+	OnPrototypeSelectionChanged = InArgs._OnPrototypeSelectionChanged;
 	PresetIndex = InArgs._DataPresetIndex;
 
 	// 优先从持久化文件加载；如果失败则回退到默认预设
 	if (!LoadPersistent())
 	{
-		PrototypeRows = {
-			{ TEXT("干扰对抗分系统"), TEXT("电磁压制场景下的抗干扰与频谱管理分系统") },
-			{ TEXT("轨迹规划分系统"), TEXT("复杂空域航迹优化与实时调整分系统") },
-			{ TEXT("躲避对抗分系统"), TEXT("抗拦截机动、威胁规避与追踪干扰分系统") },
-			{ TEXT("HL分配分系统"), TEXT("多弹协同火力分配与优先级管理分系统") }
-		};
+		if (PresetIndex == 1)
+		{
+			// Tab1（感知类测评）：只有感知类分系统
+			PrototypeRows = {
+				{ TEXT("感知类分系统"), TEXT("感知类算法与分系统综合测评") }
+			};
+		}
+		else
+		{
+			// Tab2（决策类测评）：只有决策类分系统
+			PrototypeRows = {
+				{ TEXT("决策类分系统"), TEXT("决策类算法与分系统综合测评") }
+			};
+		}
 
 		SelectedRows.Init(false, PrototypeRows.Num());
 	}
@@ -298,6 +307,12 @@ TSharedRef<SWidget> SScenarioPrototypeTable::MakeRow(int32 RowIndex)
 				SelectedRows[RowIndex] = (NewState == ECheckBoxState::Checked);
 
 				SavePersistent();
+				
+				// 通知父组件选择变化（用于联动算法表格）
+				if (OnPrototypeSelectionChanged.IsBound())
+				{
+					OnPrototypeSelectionChanged.Execute(SelectedRows[RowIndex]);
+				}
 			}
 		})
 	];

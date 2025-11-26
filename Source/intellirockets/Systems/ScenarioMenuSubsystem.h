@@ -124,6 +124,7 @@ public:
 	void RegisterHLSplitChildHit();
 	void RegisterHLSplitGroupHit(int32 SplitGroupId, const FString& TargetName);
 	void ResetHLSplitStats();
+	void ResetToStep1(); // 重置到Step1，用于重新配置（供UI调用）
 
 	// 感知算法统计上报（供蓝图/外部系统调用）
 	void Perception_ReportDetection(bool bCorrect);

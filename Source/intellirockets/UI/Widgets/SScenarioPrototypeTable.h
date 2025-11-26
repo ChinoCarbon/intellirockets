@@ -7,6 +7,7 @@ class SScrollBox;
 
 DECLARE_DELEGATE_OneParam(FOnRowEdit, int32 /*RowIndex*/);
 DECLARE_DELEGATE_OneParam(FOnRowDelete, int32 /*RowIndex*/);
+DECLARE_DELEGATE_OneParam(FOnPrototypeSelectionChanged, bool /*bSelected*/);
 
 /**
  * 样机列表表格组件
@@ -18,6 +19,7 @@ public:
 		SLATE_ARGUMENT(int32, DataPresetIndex) // 0: 决策默认数据, 1: 感知默认数据
 		SLATE_EVENT(FOnRowEdit, OnRowEdit)
 		SLATE_EVENT(FOnRowDelete, OnRowDelete)
+		SLATE_EVENT(FOnPrototypeSelectionChanged, OnPrototypeSelectionChanged)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -54,6 +56,7 @@ private:
 private:
 	FOnRowEdit OnRowEdit;
 	FOnRowDelete OnRowDelete;
+	FOnPrototypeSelectionChanged OnPrototypeSelectionChanged;
 
 	TArray<FPrototypeEntry> PrototypeRows;
 	TArray<bool> SelectedRows;

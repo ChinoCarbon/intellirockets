@@ -455,6 +455,558 @@
           ]
         }
       ]
+    },
+    {
+      "id": "alg_target_recognition",
+      "name": "目标关键部位识别算法",
+      "subCategories": [
+        {
+          "id": "alg_target_recognition_perf",
+          "name": "性能指标",
+          "indicators": [
+            {
+              "id": "3.4.1.9",
+              "name": "目标检测精度",
+              "nameEn": "Target Detection Accuracy",
+              "description": "在复杂环境下准确检测目标的能力。",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于目标检测成功率评估。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.1.10",
+              "name": "目标识别速度",
+              "nameEn": "Target Recognition Speed",
+              "description": "从检测到识别目标所需的时间。",
+              "targetValue": 0.3,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均识别时间≤0.3秒。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.1.11",
+              "name": "环境适应性",
+              "nameEn": "Environmental Adaptability",
+              "description": "在不同环境条件下保持识别精度的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于多环境测试的平均识别准确率。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.1.12",
+              "name": "关键部位识别准确率",
+              "nameEn": "Key Part Recognition Accuracy",
+              "description": "准确识别目标关键部位的比例。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "关键部位识别成功率≥88%。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_int",
+          "name": "智能指标",
+          "indicators": [
+            {
+              "id": "3.4.2.9",
+              "name": "感知自适应性",
+              "nameEn": "Perception Adaptability",
+              "description": "根据环境变化自适应调整感知策略的能力。",
+              "targetValue": 82.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于自适应调整后的识别准确率。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.2.10",
+              "name": "遮蔽物识别智能",
+              "nameEn": "Occlusion Recognition Intelligence",
+              "description": "识别被遮蔽目标关键部位的能力。",
+              "targetValue": 75.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "遮蔽环境下识别准确率≥75%。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.2.11",
+              "name": "红外伪装识别智能",
+              "nameEn": "Infrared Camouflage Recognition",
+              "description": "识别红外伪装目标的能力。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "红外伪装环境下识别准确率≥80%。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.2.12",
+              "name": "动态目标识别智能",
+              "nameEn": "Dynamic Target Recognition",
+              "description": "识别运动目标关键部位的能力。",
+              "targetValue": 78.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "动态目标识别准确率≥78%。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_eff",
+          "name": "效能指标",
+          "indicators": [
+            {
+              "id": "3.4.3.13",
+              "name": "误报率和漏报率",
+              "nameEn": "False Positive and False Negative Rate",
+              "description": "误报和漏报的综合评估，值越低越好。",
+              "targetValue": 5.0,
+              "higherIsBetter": false,
+              "unit": "%",
+              "evaluationRemark": "误报率+漏报率≤5%。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.3.14",
+              "name": "目标跟踪持续时间",
+              "nameEn": "Target Tracking Duration",
+              "description": "持续跟踪目标关键部位的平均时间。",
+              "targetValue": 10.0,
+              "higherIsBetter": true,
+              "unit": " s",
+              "evaluationRemark": "平均跟踪持续时间≥10秒。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.3.15",
+              "name": "红外图像处理时延",
+              "nameEn": "Infrared Image Processing Latency",
+              "description": "处理红外图像并完成识别所需的时间。",
+              "targetValue": 0.2,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均处理时延≤0.2秒。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.4.3.16",
+              "name": "识别效能",
+              "nameEn": "Recognition Efficiency",
+              "description": "综合考虑识别准确率和处理速度的效能指标。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "识别准确率与处理速度的加权评估。",
+              "algorithmNames": ["目标关键部位识别算法"],
+              "prototypeNames": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sys_perception",
+      "name": "感知类分系统",
+      "subCategories": [
+        {
+          "id": "sys_perception_perf",
+          "name": "性能指标",
+          "indicators": [
+            {
+              "id": "3.5.1.1",
+              "name": "多模态数据融合精度",
+              "nameEn": "Multi-modal Data Fusion Accuracy",
+              "description": "融合多种传感器数据后的识别精度。",
+              "targetValue": 92.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "多模态融合后识别准确率≥92%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.1.2",
+              "name": "传感器对齐度",
+              "nameEn": "Sensor Alignment Accuracy",
+              "description": "不同传感器数据在时空上的对齐精度。",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "传感器对齐准确率≥95%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.1.3",
+              "name": "实时感知覆盖率",
+              "nameEn": "Real-time Perception Coverage",
+              "description": "实时感知系统覆盖目标区域的比例。",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "实时感知覆盖率≥90%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.1.4",
+              "name": "冗余感知能力",
+              "nameEn": "Redundant Perception Capability",
+              "description": "在部分传感器失效时保持感知能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "传感器失效后感知准确率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.1.5",
+              "name": "多传感器融合抗干扰能力",
+              "nameEn": "Multi-sensor Fusion Anti-jamming",
+              "description": "在干扰环境下多传感器融合的稳定性。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "干扰环境下融合准确率≥88%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_int",
+          "name": "智能指标",
+          "indicators": [
+            {
+              "id": "3.5.2.1",
+              "name": "资源感知智能",
+              "nameEn": "Resource Perception Intelligence",
+              "description": "智能感知并分配计算资源的能力。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "资源分配优化率≥80%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.2.2",
+              "name": "传感器自适应调度智能",
+              "nameEn": "Sensor Adaptive Scheduling Intelligence",
+              "description": "根据任务需求智能调度传感器的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "传感器调度优化率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.2.3",
+              "name": "多模态感知智能",
+              "nameEn": "Multi-modal Perception Intelligence",
+              "description": "智能融合多模态感知数据的能力。",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "多模态融合智能评估≥90%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_eff",
+          "name": "效能指标",
+          "indicators": [
+            {
+              "id": "3.5.3.10",
+              "name": "感知数据处理时延",
+              "nameEn": "Perception Data Processing Latency",
+              "description": "处理感知数据所需的平均时间。",
+              "targetValue": 0.15,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均处理时延≤0.15秒。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.3.11",
+              "name": "感知数据吞吐量",
+              "nameEn": "Perception Data Throughput",
+              "description": "单位时间内处理的感知数据量。",
+              "targetValue": 100.0,
+              "higherIsBetter": true,
+              "unit": " MB/s",
+              "evaluationRemark": "数据吞吐量≥100MB/s。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.3.12",
+              "name": "电源消耗",
+              "nameEn": "Power Consumption",
+              "description": "感知系统运行时的平均功耗。",
+              "targetValue": 50.0,
+              "higherIsBetter": false,
+              "unit": " W",
+              "evaluationRemark": "平均功耗≤50W。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.3.13",
+              "name": "感知准确率",
+              "nameEn": "Perception Accuracy",
+              "description": "综合感知系统的整体识别准确率。",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "综合感知准确率≥90%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.3.14",
+              "name": "干扰条件下感知覆盖率",
+              "nameEn": "Perception Coverage Under Interference",
+              "description": "在干扰环境下保持感知覆盖的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "干扰环境下感知覆盖率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            },
+            {
+              "id": "3.5.3.15",
+              "name": "数据融合处理时延",
+              "nameEn": "Data Fusion Processing Latency",
+              "description": "融合多传感器数据所需的平均时间。",
+              "targetValue": 0.1,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均融合时延≤0.1秒。",
+              "algorithmNames": [],
+              "prototypeNames": ["感知类分系统"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sys_decision",
+      "name": "决策类分系统",
+      "subCategories": [
+        {
+          "id": "sys_decision_perf",
+          "name": "性能指标",
+          "indicators": [
+            {
+              "id": "3.5.1.6",
+              "name": "多任务协调能力",
+              "nameEn": "Multi-task Coordination Capability",
+              "description": "同时处理多个任务时的协调能力。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "多任务协调成功率≥88%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.1.7",
+              "name": "全局决策优化能力",
+              "nameEn": "Global Decision Optimization",
+              "description": "在全局范围内优化决策的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "全局决策优化率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.1.8",
+              "name": "任务切换响应速度",
+              "nameEn": "Task Switching Response Speed",
+              "description": "在不同任务间切换的响应时间。",
+              "targetValue": 0.2,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均切换时间≤0.2秒。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.1.9",
+              "name": "全局优化任务分配精度",
+              "nameEn": "Global Optimization Task Allocation Accuracy",
+              "description": "全局优化任务分配的准确性。",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "任务分配准确率≥90%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.1.10",
+              "name": "层次对抗策略执行成功率",
+              "nameEn": "Hierarchical Countermeasure Strategy Success Rate",
+              "description": "执行层次对抗策略的成功率。",
+              "targetValue": 82.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "策略执行成功率≥82%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_int",
+          "name": "智能指标",
+          "indicators": [
+            {
+              "id": "3.5.2.4",
+              "name": "协作决策智能",
+              "nameEn": "Collaborative Decision Intelligence",
+              "description": "多智能体协作决策的智能水平。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "协作决策智能评估≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.2.5",
+              "name": "全局任务分解智能",
+              "nameEn": "Global Task Decomposition Intelligence",
+              "description": "将全局任务智能分解为子任务的能力。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "任务分解智能评估≥88%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.2.6",
+              "name": "策略调整智能",
+              "nameEn": "Strategy Adjustment Intelligence",
+              "description": "根据态势变化智能调整策略的能力。",
+              "targetValue": 83.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "策略调整智能评估≥83%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.2.7",
+              "name": "集群协作智能",
+              "nameEn": "Cluster Collaboration Intelligence",
+              "description": "集群系统协作决策的智能水平。",
+              "targetValue": 87.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "集群协作智能评估≥87%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_eff",
+          "name": "效能指标",
+          "indicators": [
+            {
+              "id": "3.5.3.16",
+              "name": "任务分配效能",
+              "nameEn": "Task Allocation Efficiency",
+              "description": "任务分配的效率和准确性。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "任务分配效能≥88%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.3.17",
+              "name": "作战资源管理效能",
+              "nameEn": "Combat Resource Management Efficiency",
+              "description": "管理和分配作战资源的效能。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "资源管理效能≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.3.18",
+              "name": "任务完成时间",
+              "nameEn": "Task Completion Time",
+              "description": "完成指定任务所需的平均时间。",
+              "targetValue": 1.5,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均任务完成时间≤1.5秒。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.3.19",
+              "name": "决策一致性",
+              "nameEn": "Decision Consistency",
+              "description": "多智能体决策的一致性水平。",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "决策一致性≥90%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            },
+            {
+              "id": "3.5.3.20",
+              "name": "集群任务执行效能",
+              "nameEn": "Cluster Task Execution Efficiency",
+              "description": "集群系统执行任务的综合效能。",
+              "targetValue": 86.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "集群任务执行效能≥86%。",
+              "algorithmNames": [],
+              "prototypeNames": ["决策类分系统"]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -159,38 +159,24 @@ FReply SScenarioScreen::OnBackClicked()
 
 FReply SScenarioScreen::OnTab1Clicked()
 {
-	if (ActiveTabIndex != 0)
+	// 限制 Tab 切换次数，避免在两个 Tab 间频繁往返
+	if (ActiveTabIndex != 0 && TabSwitchCount < MaxTabSwitches)
 	{
-		ActiveTabIndex = 0;
-		UE_LOG(LogTemp, Log, TEXT("Switching to Tab 0 (智能感知算法测评), ActiveTabIndex=%d"), ActiveTabIndex);
-		// 重新构建整个界面以更新 tab 状态
-		Construct(FArguments()
-			.StepIndex(StepIndex)
-			.OwnerSubsystem(OwnerSubsystemWeak.Get())
-			.OnPrevStep(OnPrevStep)
-			.OnNextStep(OnNextStep)
-			.OnSaveAll(OnSaveAll)
-			.OnBackToMainMenu(OnBackToMainMenu)
-			.OnStartTest(OnStartTest));
+		++TabSwitchCount;
+		UE_LOG(LogTemp, Log, TEXT("Switching to Tab 0 (智能感知算法测评), PrevActiveTab=%d, SwitchCount=%d"), ActiveTabIndex, TabSwitchCount);
+		SetActiveTabIndex(0);
 	}
 	return FReply::Handled();
 }
 
 FReply SScenarioScreen::OnTab2Clicked()
 {
-	if (ActiveTabIndex != 1)
+	// 限制 Tab 切换次数，避免在两个 Tab 间频繁往返
+	if (ActiveTabIndex != 1 && TabSwitchCount < MaxTabSwitches)
 	{
-		ActiveTabIndex = 1;
-		UE_LOG(LogTemp, Log, TEXT("Switching to Tab 1 (智能决策算法测评), ActiveTabIndex=%d"), ActiveTabIndex);
-		// 重新构建整个界面以更新 tab 状态
-		Construct(FArguments()
-			.StepIndex(StepIndex)
-			.OwnerSubsystem(OwnerSubsystemWeak.Get())
-			.OnPrevStep(OnPrevStep)
-			.OnNextStep(OnNextStep)
-			.OnSaveAll(OnSaveAll)
-			.OnBackToMainMenu(OnBackToMainMenu)
-			.OnStartTest(OnStartTest));
+		++TabSwitchCount;
+		UE_LOG(LogTemp, Log, TEXT("Switching to Tab 1 (智能决策算法测评), PrevActiveTab=%d, SwitchCount=%d"), ActiveTabIndex, TabSwitchCount);
+		SetActiveTabIndex(1);
 	}
 	return FReply::Handled();
 }
@@ -350,6 +336,14 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 								.DataPresetIndex(1) // 感知数据
 								.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Prototype Row")); }))
 								.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Prototype Row")); }))
+								.OnPrototypeSelectionChanged(FOnPrototypeSelectionChanged::CreateLambda([this](bool bSelected)
+								{
+									// 分系统选择变化时，自动全选/取消Tab1算法表格
+									if (MainTablePerception.IsValid())
+									{
+										MainTablePerception->SelectAllRows(bSelected);
+									}
+								}))
 							));
 					}
 					else
@@ -361,6 +355,14 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 								.DataPresetIndex(0) // 决策数据
 								.OnRowEdit(FOnRowEdit::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Edit Prototype Row")); }))
 								.OnRowDelete(FOnRowDelete::CreateLambda([](int32){ UE_LOG(LogTemp, Log, TEXT("Delete Prototype Row")); }))
+								.OnPrototypeSelectionChanged(FOnPrototypeSelectionChanged::CreateLambda([this](bool bSelected)
+								{
+									// 分系统选择变化时，自动全选/取消Tab2算法表格
+									if (MainTableDecision.IsValid())
+									{
+										MainTableDecision->SelectAllRows(bSelected);
+									}
+								}))
 							));
 					}
 				}()
@@ -996,14 +998,66 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep5()
 {
 	const TSharedRef<SVerticalBox> Root = SNew(SVerticalBox);
 
+	// 顶部标题 + 返回 Step1 按钮（用于重新开始配置）
 	Root->AddSlot()
 	.AutoHeight()
 	.Padding(0.f, 0.f, 0.f, 12.f)
 	[
-		SNew(STextBlock)
-		.Text(FText::FromString(TEXT("导弹测试结果汇总")))
-		.ColorAndOpacity(ScenarioStyle::Text)
-		.Font(ScenarioStyle::BoldFont(18))
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("导弹测试结果汇总")))
+			.ColorAndOpacity(ScenarioStyle::Text)
+			.Font(ScenarioStyle::BoldFont(18))
+		]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+		.Padding(8.f, 0.f, 0.f, 0.f)
+		[
+			SNew(SButton)
+			.ButtonStyle(FCoreStyle::Get(), "Button")
+			.ContentPadding(FMargin(12.f, 6.f))
+			.OnClicked_Lambda([this]()
+			{
+				// 重置到 Step1，清空步骤相关 UI 状态，相当于重新打开配置向导
+				StepIndex = 0;
+				// 由于 Step1 是起始步骤，允许重新开始时解锁 Tab 切换计数
+				TabSwitchCount = 0;
+
+				// 同步更新 Subsystem 的 StepIndex
+				if (UScenarioMenuSubsystem* Subsystem = OwnerSubsystemWeak.Get())
+				{
+					Subsystem->ResetToStep1();
+				}
+
+				// 重新构建当前 Tab 的内容，使各子控件回到初始状态
+				if (DecisionContentBox.IsValid())
+				{
+					DecisionContentBox->ClearChildren();
+					if (ActiveTabIndex == 1)
+					{
+						DecisionContentBox->AddSlot().AutoHeight()[ BuildDecisionContent() ];
+					}
+					else
+					{
+						DecisionContentBox->AddSlot().AutoHeight()[ BuildPerceptionContent() ];
+					}
+				}
+
+				if (Breadcrumb.IsValid())
+				{
+					Breadcrumb->SetCurrentStep(StepIndex);
+				}
+
+				return FReply::Handled();
+			})
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("返回Step1重新配置")))
+				.ColorAndOpacity(ScenarioStyle::Text)
+				.Font(ScenarioStyle::Font(12))
+			]
+		]
 	];
 
 	UScenarioMenuSubsystem* Subsystem = OwnerSubsystemWeak.Get();

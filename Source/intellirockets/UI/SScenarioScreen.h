@@ -86,6 +86,9 @@ private:
 private:
 	int32 StepIndex = 0;
 	int32 ActiveTabIndex = 1; // 0: 智能感知算法测评, 1: 智能决策算法测评
+	// Tab 切换次数限制：用于控制 Tab1/Tab2 只能来回切换一次
+	int32 TabSwitchCount = 0;
+	static constexpr int32 MaxTabSwitches = 2; // 例如：从 Tab2 -> Tab1 -> 再回 Tab2，共允许 2 次切换
 	int32 TestMethodIndex = 0; // 0: 正交测试, 1: 单独测试
 	int32 EnvironmentInterferenceIndex = 0; // 0: 无干扰场景测试方法, 1: 有干扰场景测试方法
 	TSharedPtr<SScenarioBreadcrumb> Breadcrumb;

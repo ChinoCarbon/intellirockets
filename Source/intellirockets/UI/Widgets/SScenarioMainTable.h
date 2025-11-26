@@ -26,6 +26,9 @@ public:
 	void GetSelectedRowIndices(TArray<int32>& OutIndices) const;
 	void GetRowTexts(int32 RowIndex, TArray<FText>& OutColumns) const;
 	void GetSelectedAlgorithmNames(TArray<FString>& OutNames) const;
+	
+	// 全选/取消所有算法行（用于分系统表格联动）
+	void SelectAllRows(bool bSelect);
 
 	// 持久化：保存/加载当前表格内容（根据 DataPresetIndex 区分感知/决策）
 	void SavePersistent() const;

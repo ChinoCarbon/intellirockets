@@ -78,12 +78,23 @@ void SScenarioMainTable::Construct(const FArguments& InArgs)
 	// 优先从持久化文件加载；如果失败则回退到默认预设
 	if (!LoadPersistent())
 	{
-		AlgorithmRows = {
-			{ TEXT("干扰压制防护"), TEXT("强电磁压制环境下保持稳定探测与反制"), TEXT("干扰对抗算法"), TEXT("沿海-强干扰"), TEXT("多谱融合数据"), TEXT("/Configs/Decision/JammerDefense.json") },
-			{ TEXT("智能轨迹规划"), TEXT("复杂空域中快速生成安全航迹并自适应调整"), TEXT("轨迹规划算法"), TEXT("山地-复杂电磁"), TEXT("卫星+红外复合"), TEXT("/Configs/Decision/TrajectoryPlan.json") },
-			{ TEXT("躲避对抗"), TEXT("拦截密集环境下保持机动生存并规避威胁"), TEXT("躲避对抗算法"), TEXT("高原-低空威胁"), TEXT("雷达+光电联合数据"), TEXT("/Configs/Decision/EvasiveCounter.json") },
-			{ TEXT("协同火力分配"), TEXT("多弹种协同、快速分配命中优先级"), TEXT("HL分配算法"), TEXT("沿海集群"), TEXT("多源威胁库"), TEXT("/Configs/Decision/HLAllocator.json") }
-		};
+		if (PresetIndex == 1)
+		{
+			// Tab1（感知类测评）：干扰对抗算法、目标关键部位识别算法
+			AlgorithmRows = {
+				{ TEXT("干扰压制防护"), TEXT("强电磁压制环境下保持稳定探测与反制"), TEXT("干扰对抗算法"), TEXT("沿海-强干扰"), TEXT("多谱融合数据"), TEXT("/Configs/Decision/JammerDefense.json") },
+				{ TEXT("目标关键部位识别"), TEXT("复杂环境下精确识别目标关键部位"), TEXT("目标关键部位识别算法"), TEXT("多场景-复杂环境"), TEXT("红外+可见光融合"), TEXT("/Configs/Perception/TargetRecognition.json") }
+			};
+		}
+		else
+		{
+			// Tab2（决策类测评）：轨迹规划、躲避对抗、HL分配
+			AlgorithmRows = {
+				{ TEXT("智能轨迹规划"), TEXT("复杂空域中快速生成安全航迹并自适应调整"), TEXT("轨迹规划算法"), TEXT("山地-复杂电磁"), TEXT("卫星+红外复合"), TEXT("/Configs/Decision/TrajectoryPlan.json") },
+				{ TEXT("躲避对抗"), TEXT("拦截密集环境下保持机动生存并规避威胁"), TEXT("躲避对抗算法"), TEXT("高原-低空威胁"), TEXT("雷达+光电联合数据"), TEXT("/Configs/Decision/EvasiveCounter.json") },
+				{ TEXT("协同火力分配"), TEXT("多弹种协同、快速分配命中优先级"), TEXT("HL分配算法"), TEXT("沿海集群"), TEXT("多源威胁库"), TEXT("/Configs/Decision/HLAllocator.json") }
+			};
+		}
 
 		SelectedRows.Init(false, AlgorithmRows.Num());
 	}
@@ -610,6 +621,16 @@ TArray<FText> SScenarioMainTable::FAlgorithmEntry::ToTextArray() const
 		FText::FromString(TrainingEnvironment),
 		FText::FromString(TrainingData)
 	};
+}
+
+void SScenarioMainTable::SelectAllRows(bool bSelect)
+{
+	for (int32 i = 0; i < SelectedRows.Num(); ++i)
+	{
+		SelectedRows[i] = bSelect;
+	}
+	RefreshRows();
+	SavePersistent();
 }
 
 
