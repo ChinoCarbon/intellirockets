@@ -261,12 +261,17 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionContent()
 
 TSharedRef<SWidget> SScenarioScreen::BuildDecisionStepContent(int32 InStepIndex)
 {
+	UE_LOG(LogTemp, Log, TEXT("BuildDecisionStepContent: StepIndex=%d"), InStepIndex);
 	switch (InStepIndex)
 	{
 		case 0: return BuildDecisionStep1();
 		case 1: return BuildDecisionStep2();
 		case 2: return BuildDecisionStep3();
-		case 3: return BuildDecisionStep4();
+		case 3: 
+		{
+			UE_LOG(LogTemp, Log, TEXT("BuildDecisionStepContent: Building Step4 with scroll box"));
+			return BuildDecisionStep4();
+		}
 		case 4: return BuildDecisionStep5();
 		default: return SNew(SSpacer);
 	}
@@ -601,8 +606,17 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 	FScenarioTestConfig Snapshot;
 	CollectScenarioConfig(Snapshot);
 
-	// 容器
-	TSharedRef<SVerticalBox> Box = SNew(SVerticalBox);
+	UE_LOG(LogTemp, Log, TEXT("BuildDecisionStep4: Creating three-column layout for Step4 content"));
+	
+	// 使用三列布局利用横向空间
+	TSharedRef<SHorizontalBox> MainContainer = SNew(SHorizontalBox);
+	
+	// 左列容器
+	TSharedRef<SVerticalBox> LeftColumn = SNew(SVerticalBox);
+	// 中列容器
+	TSharedRef<SVerticalBox> MiddleColumn = SNew(SVerticalBox);
+	// 右列容器
+	TSharedRef<SVerticalBox> RightColumn = SNew(SVerticalBox);
 
 	const auto MakeCard = [](const FString& Title, const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget>
 	{
@@ -626,8 +640,9 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 			];
 	};
 
-	// 标题
-	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	// 标题 - 横跨两列
+	TSharedRef<SVerticalBox> FinalContainer = SNew(SVerticalBox);
+	FinalContainer->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 	[
 		SNew(SBorder)
 		.Padding(12.f)
@@ -639,6 +654,66 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 			.ColorAndOpacity(ScenarioStyle::Text)
 			.Font(ScenarioStyle::BoldFont(16))
 		]
+	];
+	
+	// 开始测试按钮 - 放在顶部
+	FinalContainer->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.f).HAlign(HAlign_Center)
+		[
+			SNew(SButton)
+			.ButtonStyle(FCoreStyle::Get(), "NoBorder")
+			.ContentPadding(FMargin(24.f,12.f))
+			.OnClicked_Lambda([this]()
+			{
+				if (OnStartTest.IsBound())
+				{
+					OnStartTest.Execute();
+				}
+				return FReply::Handled();
+			})
+			[
+				SNew(SBorder)
+				.Padding(FMargin(18.f,10.f))
+				.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
+				.BorderBackgroundColor(ScenarioStyle::Accent)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("开始测试")))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::BoldFont(14))
+					.Justification(ETextJustify::Center)
+				]
+			]
+		]
+	];
+	
+	// 三列布局
+	FinalContainer->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	[
+		MainContainer
+	];
+	
+	MainContainer->AddSlot()
+	.FillWidth(1.f)
+	.Padding(0.f,0.f,8.f,0.f)
+	[
+		LeftColumn
+	];
+	
+	MainContainer->AddSlot()
+	.FillWidth(1.f)
+	.Padding(8.f,0.f,8.f,0.f)
+	[
+		MiddleColumn
+	];
+	
+	MainContainer->AddSlot()
+	.FillWidth(1.f)
+	.Padding(8.f,0.f,0.f,0.f)
+	[
+		RightColumn
 	];
 
 	// Step2: 指标详情
@@ -658,8 +733,8 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		? TEXT("无干扰场景测试方法")
 		: TEXT("有干扰场景测试方法");
 
-	// 多层级通用测试方法
-	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	// 多层级通用测试方法 - 左列
+	LeftColumn->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 	[
 		SNew(SBorder)
 		.Padding(12.f)
@@ -706,8 +781,8 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		]
 	];
 
-	// 典型场景测试方法
-	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	// 典型场景测试方法 - 左列
+	LeftColumn->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 	[
 		SNew(SBorder)
 		.Padding(12.f)
@@ -732,9 +807,9 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		]
 	];
 
-	// Step2 card：
+	// Step2 card - 右列（指标）：
 	{
-	Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+	RightColumn->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 	[
 		SNew(SBorder)
 		.Padding(12.f)
@@ -763,7 +838,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 							.Text(FText::FromString(FString::Printf(TEXT("• %s"), *IndicatorDetails[i])))
 							.ColorAndOpacity(ScenarioStyle::TextDim)
 							.Font(ScenarioStyle::Font(12))
-							.WrapTextAt(1100.f)
+							.WrapTextAt(350.f)
 						];
 					}
 					return StaticCastSharedRef<SWidget>(ScrollBox);
@@ -793,7 +868,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 					.Text(FText::FromString(Line))
 					.ColorAndOpacity(ScenarioStyle::Text)
 					.Font(ScenarioStyle::Font(12))
-					.WrapTextAt(1200.f)
+					.WrapTextAt(350.f)
 				];
 			}
 		}
@@ -808,7 +883,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 			];
 		}
 
-		Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+		LeftColumn->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 		[
 			SNew(SBorder).Padding(12.f).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).BorderBackgroundColor(ScenarioStyle::Panel)
 			[
@@ -825,7 +900,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		];
 	}
 
-	// Step1：样机列表已选行
+	// Step1：样机列表已选行 - 左列
 	{
 		TSharedRef<SVerticalBox> ListBox = SNew(SVerticalBox);
 		if (Snapshot.SelectedPrototypeRowTexts.Num() > 0)
@@ -844,7 +919,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 					.Text(FText::FromString(Line))
 					.ColorAndOpacity(ScenarioStyle::Text)
 					.Font(ScenarioStyle::Font(12))
-					.WrapTextAt(1200.f)
+					.WrapTextAt(350.f)
 				];
 			}
 		}
@@ -859,7 +934,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 			];
 		}
 
-		Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+		LeftColumn->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 		[
 			SNew(SBorder).Padding(12.f).BorderImage(FCoreStyle::Get().GetBrush("NoBorder")).BorderBackgroundColor(ScenarioStyle::Panel)
 			[
@@ -876,7 +951,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		];
 	}
 
-	// Step3 card（使用快照数据展示）
+	// Step3 card（使用快照数据展示）- 中列
 	{
 		static const TCHAR* WeatherNames[] = { TEXT("晴天"), TEXT("海杂波"), TEXT("气动热效应"), TEXT("雾天") };
 		static const TCHAR* TimeNames[] = { TEXT("白天"), TEXT("夜晚") };
@@ -917,44 +992,43 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		EnvironmentCard->AddSlot().AutoHeight().Padding(0.f,2.f)
 		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("复杂度等级：%s"), Snapshot.PresetIndex >= 1 && Snapshot.PresetIndex <= 5 ? *FString::Printf(TEXT("%d级"), Snapshot.PresetIndex) : TEXT("未使用预设")))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
 
-		Box->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+		MiddleColumn->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
 		[ MakeCard(TEXT("环境参数（来自 Step3）"), EnvironmentCard) ];
 	}
 
-	// 开始测试按钮
-	Box->AddSlot().AutoHeight().Padding(0.f,24.f,0.f,0.f)
-	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().FillWidth(1.f).HAlign(HAlign_Center)
-		[
-			SNew(SButton)
-			.ButtonStyle(FCoreStyle::Get(), "NoBorder")
-			.ContentPadding(FMargin(24.f,12.f))
-			.OnClicked_Lambda([this]()
-			{
-				if (OnStartTest.IsBound())
-				{
-					OnStartTest.Execute();
-				}
-				return FReply::Handled();
-			})
-			[
-				SNew(SBorder)
-				.Padding(FMargin(18.f,10.f))
-				.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
-				.BorderBackgroundColor(ScenarioStyle::Accent)
-				[
-					SNew(STextBlock)
-					.Text(FText::FromString(TEXT("开始测试")))
-					.ColorAndOpacity(ScenarioStyle::Text)
-					.Font(ScenarioStyle::BoldFont(14))
-					.Justification(ETextJustify::Center)
-				]
-			]
-		]
-	];
+	// Step3 第二页：编队配置 - 中列
+	{
+		static const TCHAR* EnemyForceNames[] = { TEXT("无防空系统"), TEXT("基础防空系统"), TEXT("加强型防空系统"), TEXT("高级防空系统"), TEXT("多层体系化防空系统") };
+		static const TCHAR* FriendlyForceNames[] = { TEXT("无防空系统"), TEXT("基础防空系统"), TEXT("加强型防空系统"), TEXT("高级防空系统"), TEXT("多层体系化防空系统") };
+		static const TCHAR* EquipmentCapabilityNames[] = { TEXT("近程飞行器射程"), TEXT("中近程飞行器射程"), TEXT("中程飞行器射程"), TEXT("中远程飞行器射程"), TEXT("远程飞行器射程") };
+		static const TCHAR* FormationModeNames[] = { TEXT("单一静态目标打击"), TEXT("单一飞行器攻击"), TEXT("营级多D协同攻击"), TEXT("旅级多D协同攻击"), TEXT("旅级以上多D协同攻击") };
+		static const TCHAR* TargetAccuracyNames[] = { TEXT("高精度"), TEXT("中等精度"), TEXT("低精度") };
 
-	return Box;
+		const FString EnemyForceStr = EnemyForceNames[FMath::Clamp(Snapshot.EnemyForceIndex, 0, 4)];
+		const FString FriendlyForceStr = FriendlyForceNames[FMath::Clamp(Snapshot.FriendlyForceIndex, 0, 4)];
+		const FString EquipmentCapabilityStr = EquipmentCapabilityNames[FMath::Clamp(Snapshot.EquipmentCapabilityIndex, 0, 4)];
+		const FString FormationModeStr = FormationModeNames[FMath::Clamp(Snapshot.FormationModeIndex, 0, 4)];
+		const FString TargetAccuracyStr = TargetAccuracyNames[FMath::Clamp(Snapshot.TargetAccuracyIndex, 0, 2)];
+
+		TSharedRef<SVerticalBox> FormationCard = SNew(SVerticalBox);
+		FormationCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("敌方兵力：%s"), *EnemyForceStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		FormationCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("我方兵力：%s"), *FriendlyForceStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		FormationCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("装备能力：%s"), *EquipmentCapabilityStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		FormationCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("编队方式：%s"), *FormationModeStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+		FormationCard->AddSlot().AutoHeight().Padding(0.f,2.f)
+		[ SNew(STextBlock).Text(FText::FromString(FString::Printf(TEXT("概略目指准确性：%s"), *TargetAccuracyStr))).ColorAndOpacity(ScenarioStyle::Text).Font(ScenarioStyle::Font(12)) ];
+
+		MiddleColumn->AddSlot().AutoHeight().Padding(0.f,0.f,0.f,12.f)
+		[ MakeCard(TEXT("编队配置（来自 Step3 第二页）"), FormationCard) ];
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("BuildDecisionStep4: Two-column layout created. Left column has test methods and selections, right column has indicators and environment config"));
+	
+	return FinalContainer;
 }
 
 bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) const

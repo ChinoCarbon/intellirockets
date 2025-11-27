@@ -62,6 +62,9 @@ Engine/DerivedDataCache/
 *.uasset.tmp
 *.umap.tmp
 
+Packaged.zip
+/Packaged/
+
 # Optional: Ignore plugin binaries & intermediates
 Plugins/*/Binaries/
 Plugins/*/Intermediate/

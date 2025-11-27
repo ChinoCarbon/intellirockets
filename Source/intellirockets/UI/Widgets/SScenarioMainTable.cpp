@@ -9,11 +9,13 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Text/STextBlock.h"
+#if WITH_EDITOR
 #include "DesktopPlatformModule.h"
 #include "IDesktopPlatform.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/SWindow.h"
 #include "GenericPlatform/GenericWindow.h"
+#endif
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "Dom/JsonObject.h"
@@ -32,6 +34,7 @@ namespace
 {
 	static FString PromptForConfigPath()
 	{
+#if WITH_EDITOR
 		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 		if (!DesktopPlatform)
 		{
@@ -63,7 +66,7 @@ namespace
 		{
 			return OutFiles.Num() > 0 ? OutFiles[0] : FString();
 		}
-
+#endif
 		return FString();
 	}
 }

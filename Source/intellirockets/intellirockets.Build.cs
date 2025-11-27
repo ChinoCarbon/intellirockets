@@ -27,10 +27,14 @@ public class intellirockets : ModuleRules
 			}
 		);
 
-		PrivateDependencyModuleNames.AddRange(new string[] 
-		{ 
-			"DesktopPlatform"
-		});
+		// DesktopPlatform 仅在 Editor 配置中可用
+		if (Target.Type == TargetType.Editor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[] 
+			{ 
+				"DesktopPlatform"
+			});
+		}
 
 		PublicIncludePaths.AddRange(
 			new string[] {
