@@ -2,7 +2,8 @@
 
 struct FScenarioTestConfig
 {
-	int32 TestMethodIndex = 0;
+	int32 TestMethodTypeIndex = 0; // 0: 随机采样测试方法, 1: 正交测试方法
+	int32 TestMethodIndex = 0; // 0: 算法级, 1: 系统级（测试对象）
 	int32 EnvironmentInterferenceIndex = 0; // 0: 无干扰场景测试方法, 1: 有干扰场景测试方法
 	TArray<int32> SelectedTableRowIndices;
 	TArray<TArray<FString>> SelectedTableRowTexts;
@@ -20,6 +21,11 @@ struct FScenarioTestConfig
 	TArray<int32> CountermeasureIndices;
 	bool bBlueCustomDeployment = false;
 	int32 PresetIndex = -1;
+	int32 EnemyForceIndex = 0; // 敌方兵力：0: 无防空系统, 1: 基础防空系统, 2: 加强型防空系统, 3: 高级防空系统, 4: 多层体系化防空系统
+	int32 FriendlyForceIndex = 0; // 我方兵力：同上
+	int32 EquipmentCapabilityIndex = 0; // 装备能力：0: 近程飞行器射程, 1: 中近程, 2: 中程, 3: 中远程, 4: 远程
+	int32 FormationModeIndex = 0; // 编队方式：0: 单一静态目标打击, 1: 单一飞行器攻击, 2: 营级多D协同攻击, 3: 旅级, 4: 旅级以上
+	int32 TargetAccuracyIndex = 0; // 概略目指准确性：0: 高精度, 1: 中等精度, 2: 低精度
 };
 #pragma once
 
@@ -89,8 +95,11 @@ private:
 	// Tab 切换次数限制：用于控制 Tab1/Tab2 只能来回切换一次
 	int32 TabSwitchCount = 0;
 	static constexpr int32 MaxTabSwitches = 2; // 例如：从 Tab2 -> Tab1 -> 再回 Tab2，共允许 2 次切换
-	int32 TestMethodIndex = 0; // 0: 正交测试, 1: 单独测试
+	int32 TestMethodTypeIndex = 0; // 0: 随机采样测试方法, 1: 正交测试方法
+	int32 TestMethodIndex = 0; // 0: 算法级, 1: 系统级（测试对象）
 	int32 EnvironmentInterferenceIndex = 0; // 0: 无干扰场景测试方法, 1: 有干扰场景测试方法
+	bool bPerceptionSubsystemOverride = false;
+	bool bDecisionSubsystemOverride = false;
 	TSharedPtr<SScenarioBreadcrumb> Breadcrumb;
 	// Tab2（决策）与 Tab1（感知）分别维护自己的表实例，避免数据相互影响
 	TSharedPtr<SScenarioMainTable> MainTableDecision; // Step1 - 决策

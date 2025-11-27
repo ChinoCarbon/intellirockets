@@ -3,7 +3,6 @@
 
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBorder.h"
-#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -184,7 +183,7 @@ TSharedRef<SWidget> SScenarioPrototypeTable::BuildHeader()
 
 TSharedRef<SWidget> SScenarioPrototypeTable::BuildRows()
 {
-	SAssignNew(RowScrollBox, SScrollBox);
+	SAssignNew(RowScrollBox, SVerticalBox);
 	RefreshRows();
 	return RowScrollBox.ToSharedRef();
 }
@@ -452,6 +451,7 @@ void SScenarioPrototypeTable::RefreshRows()
 	for (int32 RowIndex = 0; RowIndex < PrototypeRows.Num(); ++RowIndex)
 	{
 		RowScrollBox->AddSlot()
+		.AutoHeight()
 		[
 			MakeRow(RowIndex)
 		];
@@ -571,9 +571,34 @@ void SScenarioPrototypeTable::GetSelectedPrototypeNames(TArray<FString>& OutName
 	{
 		if (SelectedRows[i] && PrototypeRows.IsValidIndex(i))
 		{
-			OutNames.Add(PrototypeRows[i].PrototypeName);
+			OutNames.Add(NormalizePrototypeName(PrototypeRows[i].PrototypeName));
 		}
 	}
+}
+
+FString SScenarioPrototypeTable::NormalizePrototypeName(const FString& InName) const
+{
+	if (InName.Contains(TEXT("感知")))
+	{
+		return TEXT("感知类分系统");
+	}
+	if (InName.Contains(TEXT("决策")))
+	{
+		return TEXT("决策类分系统");
+	}
+	if (InName.Contains(TEXT("干扰")))
+	{
+		return TEXT("干扰对抗分系统");
+	}
+	if (InName.Contains(TEXT("躲避")))
+	{
+		return TEXT("躲避对抗分系统");
+	}
+	if (InName.Contains(TEXT("HL")) || InName.Contains(TEXT("分配")))
+	{
+		return TEXT("HL分配分系统");
+	}
+	return InName;
 }
 
 

@@ -3,7 +3,6 @@
 
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBorder.h"
-#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
@@ -196,7 +195,7 @@ TSharedRef<SWidget> SScenarioMainTable::BuildHeader()
 
 TSharedRef<SWidget> SScenarioMainTable::BuildRows()
 {
-	SAssignNew(RowScrollBox, SScrollBox);
+	SAssignNew(RowScrollBox, SVerticalBox);
 	RefreshRows();
 	return RowScrollBox.ToSharedRef();
 }
@@ -484,6 +483,7 @@ void SScenarioMainTable::RefreshRows()
 	for (int32 RowIndex = 0; RowIndex < AlgorithmRows.Num(); ++RowIndex)
 	{
 		RowScrollBox->AddSlot()
+		.AutoHeight()
 		[
 			MakeRow(RowIndex)
 		];

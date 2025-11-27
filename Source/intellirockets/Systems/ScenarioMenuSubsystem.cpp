@@ -463,8 +463,11 @@ void UScenarioMenuSubsystem::BeginScenarioTest()
 		Hide(World);
 		if (!Config.MapLevelName.IsNone())
 		{
-			UE_LOG(LogTemp, Log, TEXT("Opening scenario map: %s"), *Config.MapLevelName.ToString());
-			UGameplayStatics::OpenLevel(World, Config.MapLevelName);
+			FString LevelNameStr = Config.MapLevelName.ToString();
+			UE_LOG(LogTemp, Log, TEXT("Opening scenario map: %s"), *LevelNameStr);
+			
+			// 使用 FString 版本的 OpenLevel
+			UGameplayStatics::OpenLevel(World, *LevelNameStr);
 		}
 		else
 		{
@@ -1579,7 +1582,7 @@ UStaticMesh* UScenarioMenuSubsystem::ResolveBlueUnitMeshByType(int32 TypeIndex) 
 	{
 		TEXT("/Game/Military_Free/Meshes/SM_radiostation_001.SM_radiostation_001"),
 		TEXT("/Game/T-34-85/Models/SM_T-34-85.SM_T-34-85"),
-		TEXT("/Game/Military_Free/Meshes/SM_radar_station_002.SM_radar_station_002"),
+		TEXT("/Game/Military_Free/Meshes/SM_tank_tower_001.SM_tank_tower_001"),
 	};
 
 	constexpr int32 MaxTypes = UE_ARRAY_COUNT(MeshPaths);

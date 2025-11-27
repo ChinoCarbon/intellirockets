@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 
-class SScrollBox;
+class SVerticalBox;
 
 DECLARE_DELEGATE_OneParam(FOnRowEdit, int32 /*RowIndex*/);
 DECLARE_DELEGATE_OneParam(FOnRowDelete, int32 /*RowIndex*/);
@@ -52,6 +52,7 @@ private:
 	void CommitEditRow(int32 RowIndex);
 	void RemoveRow(int32 RowIndex);
 	void UpdateEditingBuffer(int32 ColumnIndex, const FString& NewValue);
+	FString NormalizePrototypeName(const FString& InName) const;
 
 private:
 	FOnRowEdit OnRowEdit;
@@ -67,7 +68,7 @@ private:
 	// 0: 决策默认数据, 1: 感知默认数据（同时用于区分保存文件名）
 	int32 PresetIndex = 0;
 
-	TSharedPtr<SScrollBox> RowScrollBox;
+	TSharedPtr<SVerticalBox> RowScrollBox;
 };
 
 

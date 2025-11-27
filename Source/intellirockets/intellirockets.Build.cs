@@ -50,5 +50,11 @@ public class intellirockets : ModuleRules
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 
 		// To include OnlineSubsystemSteam, add it to the plugins section in your uproject file with the Enabled attribute set to true
+		
+		// 确保Config目录下的JSON文件被打包
+		if (Target.Type != TargetType.Editor)
+		{
+			RuntimeDependencies.Add("$(ProjectDir)/Config/DecisionIndicators.json", StagedFileType.NonUFS);
+		}
 	}
 }

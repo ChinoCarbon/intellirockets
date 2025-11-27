@@ -290,7 +290,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 				.WrapTextAt(1200.f)
 			]
 		]
-		+ SVerticalBox::Slot().FillHeight(0.5f).Padding(0.f, 8.f, 0.f, 8.f)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 8.f)
 		[
             (
 				[&]() -> TSharedRef<SWidget>
@@ -321,7 +321,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 				}()
             )
 		]
-		+ SVerticalBox::Slot().FillHeight(0.5f).Padding(0.f, 8.f, 0.f, 8.f)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 8.f)
 		[
             (
 				[&]() -> TSharedRef<SWidget>
@@ -343,6 +343,8 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 									{
 										MainTablePerception->SelectAllRows(bSelected);
 									}
+									bPerceptionSubsystemOverride = bSelected;
+									UpdateIndicatorFilter();
 								}))
 							));
 					}
@@ -362,64 +364,113 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep1()
 									{
 										MainTableDecision->SelectAllRows(bSelected);
 									}
+									bDecisionSubsystemOverride = bSelected;
+									UpdateIndicatorFilter();
 								}))
 							));
 					}
 				}()
             )
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 12.f)
 		[
 			SNew(SBorder)
 			.Padding(10.f)
 			.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
 			.BorderBackgroundColor(ScenarioStyle::Panel)
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 10.f, 0.f)
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()
 				[
-					SNew(STextBlock)
-					.Text(FText::FromString(TEXT("多层级通用测试方法")))
-					.ColorAndOpacity(ScenarioStyle::Text)
-					.Font(ScenarioStyle::Font(12))
-				]
-				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10.f, 0.f)
-				[
-					SNew(SCheckBox)
-					.IsChecked_Lambda([this]() { return TestMethodIndex == 0 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-					.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
-					{
-						if (NewState == ECheckBoxState::Checked) 
-						{ 
-							TestMethodIndex = 0; 
-							UE_LOG(LogTemp, Log, TEXT("TestMethod: 算法级")); 
-							UpdateIndicatorFilter();
-						}
-					})
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 10.f, 0.f)
 					[
-						SNew(STextBlock).Text(FText::FromString(TEXT("算法级"))).Font(ScenarioStyle::Font(12))
+						SNew(STextBlock)
+						.Text(FText::FromString(TEXT("多层级通用测试方法")))
+						.ColorAndOpacity(ScenarioStyle::Text)
+						.Font(ScenarioStyle::Font(12))
+					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10.f, 0.f)
+					[
+						SNew(SCheckBox)
+						.IsChecked_Lambda([this]() { return TestMethodTypeIndex == 0 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+						.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+						{
+							if (NewState == ECheckBoxState::Checked) 
+							{ 
+								TestMethodTypeIndex = 0; 
+								UE_LOG(LogTemp, Log, TEXT("TestMethodType: 随机采样测试方法")); 
+							}
+						})
+						[
+							SNew(STextBlock).Text(FText::FromString(TEXT("随机采样测试方法"))).Font(ScenarioStyle::Font(12))
+						]
+					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(20.f, 0.f)
+					[
+						SNew(SCheckBox)
+						.IsChecked_Lambda([this]() { return TestMethodTypeIndex == 1 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+						.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+						{
+							if (NewState == ECheckBoxState::Checked) 
+							{ 
+								TestMethodTypeIndex = 1; 
+								UE_LOG(LogTemp, Log, TEXT("TestMethodType: 正交测试方法")); 
+							}
+						})
+						[
+							SNew(STextBlock).Text(FText::FromString(TEXT("正交测试方法"))).Font(ScenarioStyle::Font(12))
+						]
 					]
 				]
-				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(20.f, 0.f)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 12.f, 0.f, 0.f)
 				[
-					SNew(SCheckBox)
-					.IsChecked_Lambda([this]() { return TestMethodIndex == 1 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-					.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
-					{
-						if (NewState == ECheckBoxState::Checked) 
-						{ 
-							TestMethodIndex = 1; 
-							UE_LOG(LogTemp, Log, TEXT("TestMethod: 系统级")); 
-							UpdateIndicatorFilter();
-						}
-					})
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 10.f, 0.f)
 					[
-						SNew(STextBlock).Text(FText::FromString(TEXT("系统级"))).Font(ScenarioStyle::Font(12))
+						SNew(STextBlock)
+						.Text(FText::FromString(TEXT("测试对象")))
+						.ColorAndOpacity(ScenarioStyle::Text)
+						.Font(ScenarioStyle::Font(12))
+					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10.f, 0.f)
+					[
+						SNew(SCheckBox)
+						.IsChecked_Lambda([this]() { return TestMethodIndex == 0 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+						.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+						{
+							if (NewState == ECheckBoxState::Checked) 
+							{ 
+								TestMethodIndex = 0; 
+								UE_LOG(LogTemp, Log, TEXT("TestMethod: 算法级")); 
+								UpdateIndicatorFilter();
+							}
+						})
+						[
+							SNew(STextBlock).Text(FText::FromString(TEXT("算法级"))).Font(ScenarioStyle::Font(12))
+						]
+					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(20.f, 0.f)
+					[
+						SNew(SCheckBox)
+						.IsChecked_Lambda([this]() { return TestMethodIndex == 1 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+						.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+						{
+							if (NewState == ECheckBoxState::Checked) 
+							{ 
+								TestMethodIndex = 1; 
+								UE_LOG(LogTemp, Log, TEXT("TestMethod: 系统级")); 
+								UpdateIndicatorFilter();
+							}
+						})
+						[
+							SNew(STextBlock).Text(FText::FromString(TEXT("系统级"))).Font(ScenarioStyle::Font(12))
+						]
 					]
 				]
 			]
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 12.f)
 		[
 			SNew(SBorder)
 			.Padding(10.f)
@@ -505,12 +556,12 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep2()
 						if (bPerception)
 						{
 							SAssignNew(IndicatorSelector, SIndicatorSelector)
-								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json"));
+								.IndicatorsJsonPath(FPaths::ProjectConfigDir() / TEXT("DecisionIndicators.json"));
 						}
 						else
 						{
 							SAssignNew(IndicatorSelector, SIndicatorSelector)
-								.IndicatorsJsonPath(FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json"));
+								.IndicatorsJsonPath(FPaths::ProjectConfigDir() / TEXT("DecisionIndicators.json"));
 						}
 						// 设置初始过滤条件
 						UpdateIndicatorFilter();
@@ -601,7 +652,8 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 	}
 
 	// Step1: 多层级通用测试方法 / 典型场景测试方法
-	const FString MultiLevelText = (Snapshot.TestMethodIndex == 0) ? TEXT("算法级") : TEXT("系统级");
+	const FString TestMethodTypeText = (Snapshot.TestMethodTypeIndex == 0) ? TEXT("随机采样测试方法") : TEXT("正交测试方法");
+	const FString TestObjectText = (Snapshot.TestMethodIndex == 0) ? TEXT("算法级") : TEXT("系统级");
 	const FString SceneMethodText = (Snapshot.EnvironmentInterferenceIndex == 0)
 		? TEXT("无干扰场景测试方法")
 		: TEXT("有干扰场景测试方法");
@@ -614,20 +666,42 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 		.BorderImage(FCoreStyle::Get().GetBrush("NoBorder"))
 		.BorderBackgroundColor(ScenarioStyle::Panel)
 		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().Padding(0.f,0.f,8.f,0.f).VAlign(VAlign_Center)
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight()
 			[
-				SNew(STextBlock)
-				.Text(FText::FromString(TEXT("多层级通用测试方法")))
-				.ColorAndOpacity(ScenarioStyle::Text)
-				.Font(ScenarioStyle::BoldFont(13))
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0.f,0.f,8.f,0.f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("多层级通用测试方法")))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::BoldFont(13))
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TestMethodTypeText))
+					.ColorAndOpacity(ScenarioStyle::TextDim)
+					.Font(ScenarioStyle::Font(12))
+				]
 			]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 4.f, 0.f, 0.f)
 			[
-				SNew(STextBlock)
-				.Text(FText::FromString(MultiLevelText))
-				.ColorAndOpacity(ScenarioStyle::TextDim)
-				.Font(ScenarioStyle::Font(12))
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0.f,0.f,8.f,0.f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("测试对象")))
+					.ColorAndOpacity(ScenarioStyle::Text)
+					.Font(ScenarioStyle::BoldFont(13))
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TestObjectText))
+					.ColorAndOpacity(ScenarioStyle::TextDim)
+					.Font(ScenarioStyle::Font(12))
+				]
 			]
 		]
 	];
@@ -885,6 +959,7 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep4()
 
 bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) const
 {
+	OutConfig.TestMethodTypeIndex = TestMethodTypeIndex;
 	OutConfig.TestMethodIndex = TestMethodIndex;
 	OutConfig.EnvironmentInterferenceIndex = EnvironmentInterferenceIndex;
 
@@ -953,6 +1028,11 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 		EnvironmentBuilder->GetCountermeasures(OutConfig.CountermeasureIndices);
 		OutConfig.bBlueCustomDeployment = EnvironmentBuilder->IsBlueCustomEnabled();
 		OutConfig.PresetIndex = EnvironmentBuilder->GetPresetIndex();
+		OutConfig.EnemyForceIndex = EnvironmentBuilder->GetEnemyForceIndex();
+		OutConfig.FriendlyForceIndex = EnvironmentBuilder->GetFriendlyForceIndex();
+		OutConfig.EquipmentCapabilityIndex = EnvironmentBuilder->GetEquipmentCapabilityIndex();
+		OutConfig.FormationModeIndex = EnvironmentBuilder->GetFormationModeIndex();
+		OutConfig.TargetAccuracyIndex = EnvironmentBuilder->GetTargetAccuracyIndex();
 	}
 	else
 	{
@@ -966,30 +1046,33 @@ bool SScenarioScreen::CollectScenarioConfig(FScenarioTestConfig& OutConfig) cons
 		TEXT("/Game/Desert/Desert"),
 		TEXT("/Game/EF_Grounds/Maps/ExampleMap"),
 		TEXT("/Game/ProceduralNtr_vol2/maps/Demo_Scene"),
-		TEXT("/Game/Maps/Coast/CoastMap")
+		TEXT("/Game/MWLandscapeAutoMaterial/Maps/LandscapeAutoMaterial_Island_Example")  // 插件地图使用插件路径格式（不带/Game/前缀）
 	};
+	bool bPackageExists = false;
 	if (OutConfig.MapIndex >= 0 && OutConfig.MapIndex < UE_ARRAY_COUNT(MapLevelPaths))
 	{
 		// 校验关卡包是否存在，不存在则置空，避免 OpenLevel 失败无反馈
-		const FString LevelRef = MapLevelPaths[OutConfig.MapIndex];
-		bool bExists = false;
+		FString LevelRef = MapLevelPaths[OutConfig.MapIndex];
 		{
 			// 允许传递 /Game/Path/Level 的地图名；检查对应包是否存在
 			// 这里只能做轻量校验：若编辑器环境无法确认，则继续沿用默认行为
-			bExists = FPackageName::DoesPackageExist(LevelRef);
+			bPackageExists = FPackageName::DoesPackageExist(LevelRef);
 		}
-		OutConfig.MapLevelName = bExists ? FName(*LevelRef) : NAME_None;
+		// 即使检查失败，也设置地图名称（因为某些插件地图可能无法通过 DoesPackageExist 检测到）
+		// OpenLevel 会处理无效路径的情况
+		// 注意：插件地图使用插件路径格式（如 /MWLandscapeAutoMaterial/...），不要添加 /Game/ 前缀
+		OutConfig.MapLevelName = FName(*LevelRef);
 	}
 	else
 	{
 		OutConfig.MapLevelName = NAME_None;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("CollectScenarioConfig: ActiveTabIndex=%d MapIndex=%d -> MapLevelName=%s (exists=%s)"),
+	UE_LOG(LogTemp, Log, TEXT("CollectScenarioConfig: ActiveTabIndex=%d MapIndex=%d -> MapLevelName=%s (package check=%s)"),
 		ActiveTabIndex,
 		OutConfig.MapIndex,
 		OutConfig.MapLevelName.IsNone() ? TEXT("None") : *OutConfig.MapLevelName.ToString(),
-		(OutConfig.MapLevelName.IsNone() ? TEXT("No") : TEXT("Yes")));
+		(bPackageExists ? TEXT("found") : TEXT("not found, but will attempt to load")));
 
 	return true;
 }
@@ -1019,6 +1102,8 @@ TSharedRef<SWidget> SScenarioScreen::BuildDecisionStep5()
 			.ContentPadding(FMargin(12.f, 6.f))
 			.OnClicked_Lambda([this]()
 			{
+				bPerceptionSubsystemOverride = false;
+				bDecisionSubsystemOverride = false;
 				// 重置到 Step1，清空步骤相关 UI 状态，相当于重新打开配置向导
 				StepIndex = 0;
 				// 由于 Step1 是起始步骤，允许重新开始时解锁 Tab 切换计数
@@ -1448,8 +1533,14 @@ void SScenarioScreen::UpdateIndicatorFilter()
 		}
 	}
 	
-	// 优先使用算法选择，如果都没有则不过滤
-	if (bHasAlgorithmSelection)
+	const bool bSubsystemOverride = bPerception ? bPerceptionSubsystemOverride : bDecisionSubsystemOverride;
+	
+	// 优先级：分系统覆盖 > 算法 > 分系统 > 显示全部
+	if (bSubsystemOverride && bHasPrototypeSelection)
+	{
+		IndicatorSelector->SetFilter(false, SelectedPrototypeNames, TestMethodIndex == 0, bPerception);
+	}
+	else if (bHasAlgorithmSelection)
 	{
 		IndicatorSelector->SetFilter(true, SelectedAlgorithmNames, TestMethodIndex == 0, bPerception);
 	}

@@ -48,7 +48,7 @@ void SIndicatorSelector::Construct(const FArguments& InArgs)
 	FString ConfigPath = InArgs._IndicatorsJsonPath;
 	if (ConfigPath.IsEmpty())
 	{
-		ConfigPath = FPaths::ProjectContentDir() / TEXT("Config/DecisionIndicators.json");
+		ConfigPath = FPaths::ProjectConfigDir() / TEXT("DecisionIndicators.json");
 	}
 	if (!FIndicatorDataLoader::LoadFromFile(ConfigPath, IndicatorData))
 	{
