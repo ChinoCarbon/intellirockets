@@ -581,6 +581,32 @@ void SScenarioPrototypeTable::GetSelectedPrototypeNames(TArray<FString>& OutName
 
 FString SScenarioPrototypeTable::NormalizePrototypeName(const FString& InName) const
 {
+	// 先检查具体的分系统名称（更具体的匹配优先）
+	if (InName.Contains(TEXT("群体协同决策系统")))
+	{
+		return TEXT("群体协同决策系统");
+	}
+	if (InName.Contains(TEXT("目标识别抗干扰分系统")))
+	{
+		return TEXT("目标识别抗干扰分系统");
+	}
+	if (InName.Contains(TEXT("干扰对抗分系统")))
+	{
+		return TEXT("干扰对抗分系统");
+	}
+	if (InName.Contains(TEXT("躲避对抗分系统")))
+	{
+		return TEXT("躲避对抗分系统");
+	}
+	if (InName.Contains(TEXT("HL分配分系统")) || (InName.Contains(TEXT("HL")) && InName.Contains(TEXT("分配"))))
+	{
+		return TEXT("HL分配分系统");
+	}
+	if (InName.Contains(TEXT("轨迹规划分系统")))
+	{
+		return TEXT("轨迹规划分系统");
+	}
+	// 然后检查通用分类
 	if (InName.Contains(TEXT("感知")))
 	{
 		return TEXT("感知类分系统");
@@ -588,18 +614,6 @@ FString SScenarioPrototypeTable::NormalizePrototypeName(const FString& InName) c
 	if (InName.Contains(TEXT("决策")))
 	{
 		return TEXT("决策类分系统");
-	}
-	if (InName.Contains(TEXT("干扰")))
-	{
-		return TEXT("干扰对抗分系统");
-	}
-	if (InName.Contains(TEXT("躲避")))
-	{
-		return TEXT("躲避对抗分系统");
-	}
-	if (InName.Contains(TEXT("HL")) || InName.Contains(TEXT("分配")))
-	{
-		return TEXT("HL分配分系统");
 	}
 	return InName;
 }

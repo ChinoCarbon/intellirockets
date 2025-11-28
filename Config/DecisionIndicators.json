@@ -1007,6 +1007,642 @@
           ]
         }
       ]
+    },
+    {
+      "id": "alg_target_recognition_2",
+      "name": "感知算法指标",
+      "subCategories": [
+        {
+          "id": "alg_target_recognition_2_func",
+          "name": "功能性",
+          "indicators": [
+            {
+              "id": "3.6.1.1",
+              "name": "遮蔽物识别能力",
+              "nameEn": "Occlusion Recognition Capability",
+              "description": "识别被遮蔽目标关键部位的能力。",
+              "targetValue": 75.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "遮蔽环境下识别准确率≥75%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_2_perf",
+          "name": "性能性",
+          "indicators": [
+            {
+              "id": "3.6.2.1",
+              "name": "目标识别速度",
+              "nameEn": "Target Recognition Speed",
+              "description": "从检测到识别目标所需的时间。",
+              "targetValue": 0.3,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均识别时间≤0.3秒。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.6.2.2",
+              "name": "关键部位识别准确率",
+              "nameEn": "Key Part Recognition Accuracy",
+              "description": "准确识别目标关键部位的比例。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "关键部位识别成功率≥88%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_2_int",
+          "name": "智能性",
+          "indicators": [
+            {
+              "id": "3.6.3.1",
+              "name": "威胁等级评估",
+              "nameEn": "Threat Level Assessment",
+              "description": "对不同威胁进行分级评估的准确性。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "威胁等级评估准确度≥85%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.6.3.2",
+              "name": "自适应频率选择",
+              "nameEn": "Adaptive Frequency Selection",
+              "description": "面对频谱干扰时动态选择可用频段的成功率。",
+              "targetValue": 98.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "频率调整成功率≥98%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_2_eff",
+          "name": "效能性",
+          "indicators": [
+            {
+              "id": "3.6.4.1",
+              "name": "误报率",
+              "nameEn": "False Positive Rate",
+              "description": "错误识别为目标的比例，值越低越好。",
+              "targetValue": 2.5,
+              "higherIsBetter": false,
+              "unit": "%",
+              "evaluationRemark": "误报率≤2.5%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            },
+            {
+              "id": "3.6.4.2",
+              "name": "漏报率",
+              "nameEn": "False Negative Rate",
+              "description": "未能识别目标的比例，值越低越好。",
+              "targetValue": 2.5,
+              "higherIsBetter": false,
+              "unit": "%",
+              "evaluationRemark": "漏报率≤2.5%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_2_support",
+          "name": "保障性",
+          "indicators": [
+            {
+              "id": "3.6.5.1",
+              "name": "关键部位识别准确率",
+              "nameEn": "Key Part Recognition Accuracy",
+              "description": "准确识别目标关键部位的比例。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "关键部位识别成功率≥88%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_2_gen",
+          "name": "泛化性",
+          "indicators": [
+            {
+              "id": "3.6.6.1",
+              "name": "感知自适应性",
+              "nameEn": "Perception Adaptability",
+              "description": "根据环境变化自适应调整感知策略的能力。",
+              "targetValue": 82.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "基于自适应调整后的识别准确率。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_2_sec",
+          "name": "安全性",
+          "indicators": [
+            {
+              "id": "3.6.7.1",
+              "name": "抗干扰成功率",
+              "nameEn": "Anti-jamming Success Rate",
+              "description": "在干扰环境下保持识别能力的成功率。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "干扰环境下识别成功率≥80%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        },
+        {
+          "id": "alg_target_recognition_2_rel",
+          "name": "可靠性",
+          "indicators": [
+            {
+              "id": "3.6.8.1",
+              "name": "系统恢复能力",
+              "nameEn": "System Recovery Capability",
+              "description": "系统故障后恢复至正常状态的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "系统恢复成功率≥85%。",
+              "algorithmNames": ["目标关键部位识别算法-2"],
+              "prototypeNames": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sys_perception_anti_jamming",
+      "name": "感知分系统指标",
+      "subCategories": [
+        {
+          "id": "sys_perception_anti_jamming_func",
+          "name": "功能性",
+          "indicators": [
+            {
+              "id": "3.7.1.1",
+              "name": "多传感器融合抗干扰能力",
+              "nameEn": "Multi-sensor Fusion Anti-jamming Capability",
+              "description": "在干扰环境下多传感器融合的稳定性。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "干扰环境下融合准确率≥88%。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_anti_jamming_perf",
+          "name": "性能性",
+          "indicators": [
+            {
+              "id": "3.7.2.1",
+              "name": "传感器对齐度",
+              "nameEn": "Sensor Alignment Accuracy",
+              "description": "不同传感器数据在时空上的对齐精度。",
+              "targetValue": 95.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "传感器对齐准确率≥95%。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_anti_jamming_int",
+          "name": "智能性",
+          "indicators": [
+            {
+              "id": "3.7.3.1",
+              "name": "资源感知智能",
+              "nameEn": "Resource Perception Intelligence",
+              "description": "智能感知并分配计算资源的能力。",
+              "targetValue": 80.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "资源分配优化率≥80%。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_anti_jamming_eff",
+          "name": "效能性",
+          "indicators": [
+            {
+              "id": "3.7.4.1",
+              "name": "感知数据处理延时",
+              "nameEn": "Perception Data Processing Latency",
+              "description": "处理感知数据所需的平均时间。",
+              "targetValue": 0.15,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均处理时延≤0.15秒。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_anti_jamming_support",
+          "name": "保障性",
+          "indicators": [
+            {
+              "id": "3.7.5.1",
+              "name": "实时感知覆盖率",
+              "nameEn": "Real-time Perception Coverage",
+              "description": "实时感知系统覆盖目标区域的比例。",
+              "targetValue": 90.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "实时感知覆盖率≥90%。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_anti_jamming_gen",
+          "name": "泛化性",
+          "indicators": [
+            {
+              "id": "3.7.6.1",
+              "name": "传感器自适应调度",
+              "nameEn": "Sensor Adaptive Scheduling",
+              "description": "根据任务需求智能调度传感器的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "传感器调度优化率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_anti_jamming_sec",
+          "name": "安全性",
+          "indicators": [
+            {
+              "id": "3.7.7.1",
+              "name": "干扰条件下感知覆盖率",
+              "nameEn": "Perception Coverage Under Interference",
+              "description": "在干扰环境下保持感知覆盖的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "干扰环境下感知覆盖率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_perception_anti_jamming_rel",
+          "name": "可靠性",
+          "indicators": [
+            {
+              "id": "3.7.8.1",
+              "name": "系统恢复能力",
+              "nameEn": "System Recovery Capability",
+              "description": "系统故障后恢复至正常状态的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "系统恢复成功率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["目标识别抗干扰分系统"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sys_decision_cooperative",
+      "name": "决策分系统指标",
+      "subCategories": [
+        {
+          "id": "sys_decision_cooperative_func",
+          "name": "功能性",
+          "indicators": [
+            {
+              "id": "3.8.1.1",
+              "name": "多任务协调能力",
+              "nameEn": "Multi-task Coordination Capability",
+              "description": "同时处理多个任务时的协调能力。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "多任务协调成功率≥88%。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_cooperative_perf",
+          "name": "性能性",
+          "indicators": [
+            {
+              "id": "3.8.2.1",
+              "name": "全局决策优化能力",
+              "nameEn": "Global Decision Optimization Capability",
+              "description": "在全局范围内优化决策的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "全局决策优化率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_cooperative_int",
+          "name": "智能性",
+          "indicators": [
+            {
+              "id": "3.8.3.1",
+              "name": "协作决策智能",
+              "nameEn": "Collaborative Decision Intelligence",
+              "description": "多智能体协作决策的智能水平。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "协作决策智能评估≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_cooperative_eff",
+          "name": "效能性",
+          "indicators": [
+            {
+              "id": "3.8.4.1",
+              "name": "任务完成时间",
+              "nameEn": "Task Completion Time",
+              "description": "完成指定任务所需的平均时间。",
+              "targetValue": 1.5,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均任务完成时间≤1.5秒。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_cooperative_support",
+          "name": "保障性",
+          "indicators": [
+            {
+              "id": "3.8.5.1",
+              "name": "全局任务分解能力",
+              "nameEn": "Global Task Decomposition Capability",
+              "description": "将全局任务智能分解为子任务的能力。",
+              "targetValue": 88.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "任务分解智能评估≥88%。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_cooperative_gen",
+          "name": "泛化性",
+          "indicators": [
+            {
+              "id": "3.8.6.1",
+              "name": "多智能体协同能力",
+              "nameEn": "Multi-agent Coordination Capability",
+              "description": "多个智能体协同工作的能力。",
+              "targetValue": 87.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "多智能体协同成功率≥87%。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_cooperative_sec",
+          "name": "安全性",
+          "indicators": [
+            {
+              "id": "3.8.7.1",
+              "name": "策略调整能力",
+              "nameEn": "Strategy Adjustment Capability",
+              "description": "根据态势变化智能调整策略的能力。",
+              "targetValue": 83.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "策略调整智能评估≥83%。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        },
+        {
+          "id": "sys_decision_cooperative_rel",
+          "name": "可靠性",
+          "indicators": [
+            {
+              "id": "3.8.8.1",
+              "name": "系统恢复能力",
+              "nameEn": "System Recovery Capability",
+              "description": "系统故障后恢复至正常状态的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "系统恢复成功率≥85%。",
+              "algorithmNames": [],
+              "prototypeNames": ["群体协同决策系统"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alg_trajectory_2",
+      "name": "决策算法指标",
+      "subCategories": [
+        {
+          "id": "alg_trajectory_2_func",
+          "name": "功能性",
+          "indicators": [
+            {
+              "id": "3.9.1.1",
+              "name": "任务分配协调能力",
+              "nameEn": "Task Allocation Coordination Capability",
+              "description": "多任务分配之间的协调程度。",
+              "targetValue": 50.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "任务分配协调成功率≥50%。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_2_perf",
+          "name": "性能性",
+          "indicators": [
+            {
+              "id": "3.9.2.1",
+              "name": "决策生成速度",
+              "nameEn": "Decision Generation Speed",
+              "description": "从接收态势到输出航迹指令的平均耗时。",
+              "targetValue": 0.5,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均决策生成时间≤0.5秒。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_2_eff",
+          "name": "效能性",
+          "indicators": [
+            {
+              "id": "3.9.3.1",
+              "name": "路径规划执行时间",
+              "nameEn": "Route Execution Time",
+              "description": "生成航迹并完成执行的平均时间。",
+              "targetValue": 1.0,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "平均路径规划执行时间≤1.0秒。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_2_int",
+          "name": "智能性",
+          "indicators": [
+            {
+              "id": "3.9.4.1",
+              "name": "路径规划执行时间",
+              "nameEn": "Path Planning Execution Time",
+              "description": "智能路径规划的执行时间。",
+              "targetValue": 1.0,
+              "higherIsBetter": false,
+              "unit": " s",
+              "evaluationRemark": "智能路径规划执行时间≤1.0秒。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_2_support",
+          "name": "保障性",
+          "indicators": [
+            {
+              "id": "3.9.5.1",
+              "name": "路径规划精度",
+              "nameEn": "Path Planning Accuracy",
+              "description": "生成路径与最优路径的一致程度。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "路径规划精度≥85%。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_2_gen",
+          "name": "泛化性",
+          "indicators": [
+            {
+              "id": "3.9.6.1",
+              "name": "群体协同能力",
+              "nameEn": "Swarm Coordination Capability",
+              "description": "多智能体群体协同规划的能力。",
+              "targetValue": 82.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "群体协同成功率≥82%。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_2_sec",
+          "name": "安全性",
+          "indicators": [
+            {
+              "id": "3.9.7.1",
+              "name": "策略反制能力",
+              "nameEn": "Strategy Countermeasure Capability",
+              "description": "在拦截或诱导策略下成功规避敌方的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "策略反制成功率≥85%。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        },
+        {
+          "id": "alg_trajectory_2_rel",
+          "name": "可靠性",
+          "indicators": [
+            {
+              "id": "3.9.8.1",
+              "name": "系统恢复能力",
+              "nameEn": "System Recovery Capability",
+              "description": "系统故障后恢复至正常状态的能力。",
+              "targetValue": 85.0,
+              "higherIsBetter": true,
+              "unit": "%",
+              "evaluationRemark": "系统恢复成功率≥85%。",
+              "algorithmNames": ["轨迹规划算法-2"],
+              "prototypeNames": ["轨迹规划分系统"]
+            }
+          ]
+        }
+      ]
     }
   ]
 }
